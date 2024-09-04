@@ -69,6 +69,11 @@ impl Storage {
             image_receiver,
         }
     }
+
+    pub fn _stop_loading(&mut self) {
+        self.load_kill_sender.send(true).ok();
+        self.loading = false;
+    }
 }
 
 pub(crate) fn sys_load_path(path: PathBuf, mut storage: ResMut<Storage>) {
@@ -136,6 +141,7 @@ fn load_images(
             .unwrap();
     }
 
+    log::info!("Finished loading images");
     image_sender.send(ImageChannel::Finished).unwrap();
 }
 

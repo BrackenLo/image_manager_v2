@@ -4,33 +4,45 @@ use std::{
     env,
     path::{Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
 
 use shipyard::{AllStoragesView, IntoIter, View};
-use winit::{event::WindowEvent, event_loop::ActiveEventLoop, keyboard::KeyCode};
+use winit::{
+    event::WindowEvent,
+    event_loop::{ActiveEventLoop, ControlFlow},
+    keyboard::KeyCode,
+};
 
 use crate::{
     debug::{self, Upkeep},
     images::{self, Image},
-    layout::{self, ImageViewport, LayoutManager},
+    layout::{self, ImageViewport, LayoutManager, LayoutNavigation},
     renderer::{
-        self, camera::MainCamera, texture::DepthTexture, texture_pipeline::TexturePipeline, Device,
-        Queue, RenderPassTools, RenderPassToolsDesc, Surface,
+        self,
+        camera::{self, MainCamera},
+        texture::DepthTexture,
+        texture_pipeline::TexturePipeline,
+        Device, Queue, RenderPassTools, RenderPassToolsDesc, Surface,
     },
     storage::{self, Storage},
-    tools::{self, Input, Res, ResMut, Size, Time, UniqueTools, WorldTools},
+    tools::{self, Input, MouseInput, Res, ResMut, Size, Time, UniqueTools, WorldTools},
     window::{self, Window},
 };
 
 //====================================================================
 
+const TIMESTEP: f32 = 1. / 75.;
+
 pub struct App {
     world: shipyard::World,
+    timestep: Duration,
 }
 
 impl App {
     pub fn new(event_loop: &ActiveEventLoop) -> Self {
         let world = shipyard::World::new();
+
         let window = Arc::new(
             event_loop
                 .create_window(winit::window::Window::default_attributes())
@@ -41,7 +53,10 @@ impl App {
             .and_run_with_data(window::sys_add_window, window.clone())
             .and_run_with_data(renderer::sys_setup_renderer_components, window);
 
-        let mut app = Self { world };
+        let mut app = Self {
+            world,
+            timestep: Duration::from_secs_f32(TIMESTEP),
+        };
 
         app.setup();
         app
@@ -69,6 +84,7 @@ impl App {
         self.world
             .insert(Time::default())
             .insert(Input::<KeyCode>::new())
+            .insert(MouseInput::default())
             .insert(Upkeep::new());
 
         self.world
@@ -96,6 +112,7 @@ impl App {
         self.world
             .insert(LayoutManager::default())
             .insert(ImageViewport::default())
+            .insert(LayoutNavigation::default())
             .insert(Storage::new())
             .and_run_with_data(storage::sys_load_path, path);
     }
@@ -106,8 +123,8 @@ impl App {
         self.update();
         self.render();
 
-        self.world
-            .run(|window: shipyard::UniqueView<Window>| window.request_redraw());
+        // self.world
+        //     .run(|window: shipyard::UniqueView<Window>| window.request_redraw());
     }
 
     fn update(&mut self) {
@@ -123,7 +140,12 @@ impl App {
                 .and_run(storage::sys_spawn_new_images);
         }
 
-        // Format images
+        // Any other stuff
+        self.world
+            .and_run(camera::sys_update_camera)
+            .and_run(layout::sys_navigate_layout);
+
+        // Format images - Always do second to last
         self.world
             .and_run(layout::sys_order_images)
             .and_run(layout::sys_rebuild_images);
@@ -131,6 +153,7 @@ impl App {
         // Clear up
         self.world
             .and_run(tools::sys_reset_key_input)
+            .and_run(tools::sys_reset_mouse_input)
             .and_run(images::sys_remove_pending)
             .and_run(images::sys_clear_dirty);
     }
@@ -175,12 +198,10 @@ fn sys_finish_render(all_storages: AllStoragesView, queue: Res<Queue>) {
 fn sys_render(
     mut tools: ResMut<RenderPassTools>,
     depth: Res<DepthTexture>,
+    viewport: Res<ImageViewport>,
 
     texture_pipeline: Res<TexturePipeline>,
-    // ui_pipeline: Res<UiPipeline>,
     camera: Res<MainCamera>,
-    // navigation: Res<ImageNavigation>,
-    // ui: Res<Ui>,
     v_images: View<Image>,
 ) {
     let desc = RenderPassToolsDesc {
@@ -193,7 +214,7 @@ fn sys_render(
 
         let images = v_images.iter().map(|image| &image.instance);
 
-        texture_pipeline.render(pass, &camera, images.into_iter(), None)
+        texture_pipeline.render(pass, &camera, images.into_iter(), Some(viewport.inner()))
     });
 }
 
@@ -213,7 +234,11 @@ impl App {
                 event_loop.exit();
             }
 
-            WindowEvent::RedrawRequested => self.tick(),
+            WindowEvent::RedrawRequested => {
+                self.tick();
+
+                event_loop.set_control_flow(ControlFlow::wait_duration(self.timestep));
+            }
 
             WindowEvent::KeyboardInput { event, .. } => {
                 if let winit::keyboard::PhysicalKey::Code(key) = event.physical_key {
@@ -224,8 +249,24 @@ impl App {
                 }
             }
 
+            WindowEvent::CursorMoved { position, .. } => self.world.run_with_data(
+                tools::sys_process_mouse_pos,
+                [position.x as f32, position.y as f32],
+            ),
+            WindowEvent::MouseWheel { delta, .. } => match delta {
+                winit::event::MouseScrollDelta::LineDelta(h, v) => {
+                    self.world.run_with_data(tools::sys_process_wheel, [h, v])
+                }
+                winit::event::MouseScrollDelta::PixelDelta(_) => {}
+            },
+
             _ => {}
         }
+    }
+
+    pub fn resumed(&mut self) {
+        self.world
+            .run(|window: shipyard::UniqueView<Window>| window.request_redraw());
     }
 }
 

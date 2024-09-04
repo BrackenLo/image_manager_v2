@@ -103,6 +103,7 @@ impl<T: Display> Display for Size<T> {
 
 //--------------------------------------------------
 
+#[derive(Clone)]
 pub struct Rect {
     pub x: f32,
     pub y: f32,
@@ -263,6 +264,40 @@ pub(crate) fn sys_process_keypress(key: (KeyCode, bool), mut keys: ResMut<Input<
 
 pub(crate) fn sys_reset_key_input(mut keys: ResMut<Input<KeyCode>>) {
     keys.reset();
+}
+
+//--------------------------------------------------
+
+#[derive(Unique, Debug, Default)]
+pub(crate) struct MouseInput {
+    pos: glam::Vec2,
+    pos_delta: glam::Vec2,
+    scroll: glam::Vec2,
+}
+
+impl MouseInput {
+    #[inline]
+    pub fn scroll(&self) -> glam::Vec2 {
+        self.scroll
+    }
+
+    #[inline]
+    pub fn pos(&self) -> glam::Vec2 {
+        self.pos
+    }
+}
+
+pub(crate) fn sys_process_wheel(wheel: [f32; 2], mut mouse: ResMut<MouseInput>) {
+    mouse.scroll += glam::Vec2::from(wheel);
+}
+
+pub(crate) fn sys_process_mouse_pos(pos: [f32; 2], mut mouse: ResMut<MouseInput>) {
+    mouse.pos = pos.into();
+}
+
+pub(crate) fn sys_reset_mouse_input(mut mouse: ResMut<MouseInput>) {
+    mouse.pos_delta = glam::Vec2::ZERO;
+    mouse.scroll = glam::Vec2::ZERO;
 }
 
 //====================================================================

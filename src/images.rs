@@ -17,7 +17,7 @@ pub(crate) struct ImagePos {
 
 impl ImagePos {
     #[inline]
-    pub fn new(x: f32, y: f32) -> Self {
+    pub fn _new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
     #[inline]
@@ -36,7 +36,7 @@ pub(crate) struct ImageSize {
 
 impl ImageSize {
     #[inline]
-    pub fn new(width: f32, height: f32) -> Self {
+    pub fn _new(width: f32, height: f32) -> Self {
         Self { width, height }
     }
     #[inline]
@@ -66,7 +66,7 @@ pub(crate) struct ImageColor {
 
 impl ImageColor {
     #[inline]
-    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
+    pub fn _new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
     }
     #[inline]
@@ -110,6 +110,22 @@ pub(crate) struct ToRemove;
 //====================================================================
 
 #[derive(Borrow, BorrowInfo)]
+pub(crate) struct ImageDirtier<'v> {
+    entities: EntitiesViewMut<'v>,
+    index: View<'v, ImageIndex>,
+    dirty: ViewMut<'v, ImageDirty>,
+}
+
+impl ImageDirtier<'_> {
+    pub fn mark_all_dirty(&mut self) {
+        (&self.index)
+            .iter()
+            .with_id()
+            .for_each(|(id, _)| self.entities.add_component(id, &mut self.dirty, ImageDirty));
+    }
+}
+
+#[derive(Borrow, BorrowInfo)]
 pub(crate) struct ImageCreator<'v> {
     entities: EntitiesViewMut<'v>,
 
@@ -129,19 +145,11 @@ impl ImageCreator<'_> {
         self.entities.add_component(id, &mut self.remove, ToRemove);
     }
 
-    pub fn remove_all(&mut self) {
+    pub fn _remove_all(&mut self) {
         (&self.pos, &self.size, &self.color, &self.image)
             .iter()
             .with_id()
             .for_each(|(id, _)| self.entities.add_component(id, &mut self.remove, ToRemove));
-    }
-
-    pub fn mark_all_dirty(&mut self) {
-        log::debug!("Marking all images as dirty");
-        (&self.image, &self.pos, &self.size, &self.color)
-            .iter()
-            .with_id()
-            .for_each(|(id, _)| self.entities.add_component(id, &mut self.dirty, ImageDirty));
     }
 
     pub fn spawn(&mut self, image: Image, index: u32) -> EntityId {

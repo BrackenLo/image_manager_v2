@@ -78,7 +78,10 @@ pub(crate) fn sys_setup_renderer_components(
 
     log::trace!("Creating core wgpu renderer components.");
 
-    let instance = wgpu::Instance::default();
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::PRIMARY,
+        ..Default::default()
+    });
     let surface = instance.create_surface(window.clone()).unwrap();
 
     let adapter = instance

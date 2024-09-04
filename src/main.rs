@@ -1,7 +1,5 @@
 //====================================================================
 
-use std::ops::DerefMut;
-
 use app::App;
 use winit::{application::ApplicationHandler, event_loop::EventLoop};
 
@@ -64,10 +62,18 @@ impl ApplicationHandler for Runner {
 
     fn new_events(
         &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
+        _event_loop: &winit::event_loop::ActiveEventLoop,
         cause: winit::event::StartCause,
     ) {
-        let _ = (event_loop, cause);
+        if let Some(inner) = &mut self.inner {
+            match cause {
+                winit::event::StartCause::ResumeTimeReached { .. } => inner.resumed(),
+                // winit::event::StartCause::WaitCancelled { start, requested_resume } => todo!(),
+                // winit::event::StartCause::Poll => todo!(),
+                // winit::event::StartCause::Init => todo!(),
+                _ => {}
+            }
+        }
     }
 
     fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: ()) {

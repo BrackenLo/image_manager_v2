@@ -113,7 +113,7 @@ impl Texture {
 
 impl Texture {
     // Create a wgpu Texture from given RGB values.
-    pub fn from_color(
+    pub fn _from_color(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         color: [u8; 3],
@@ -136,7 +136,7 @@ impl Texture {
     /// Try to create a wgpu Texture from an array of bytes.
     /// The image crate will return an error if it cannot determine the format
     /// of the image.
-    pub fn from_bytes(
+    pub fn _from_bytes(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         bytes: &[u8],
