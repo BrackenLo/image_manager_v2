@@ -53,7 +53,7 @@ impl Upkeep {
 }
 
 pub(crate) fn sys_tick_upkeep(mut upkeep: ResMut<Upkeep>, time: Res<Time>) {
-    upkeep.tick(time.delta_seconds(), true);
+    upkeep.tick(time.delta_seconds(), false);
 }
 
 //====================================================================

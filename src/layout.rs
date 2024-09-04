@@ -1,12 +1,14 @@
 //====================================================================
 
-use shipyard::{IntoIter, Unique, View, ViewMut};
+use shipyard::{EntitiesView, Get, IntoIter, IntoWithId, Remove, Unique, View, ViewMut};
 use winit::keyboard::KeyCode;
 
 use crate::{
-    images::{Image, ImageColor, ImageDirtier, ImageDirty, ImageIndex, ImagePos, ImageSize},
+    images::{
+        Image, ImageColor, ImageDirtier, ImageDirty, ImageIndex, ImagePos, ImageSelected, ImageSize,
+    },
     renderer::{camera::MainCamera, texture_pipeline::RawTextureInstance, Queue},
-    tools::{Input, MouseInput, Rect, Res, ResMut, Time},
+    tools::{aabb_point, Input, MouseInput, Rect, Res, ResMut, Time},
     window::WindowSize,
 };
 
@@ -128,6 +130,8 @@ pub(crate) fn sys_order_images(
 
             size.width = layout.tile_size.x;
             size.height = layout.tile_size.y;
+
+            // println!("Position at {}, {}", pos.x, pos.y);
         });
 }
 
@@ -235,6 +239,81 @@ pub(crate) fn sys_navigate_layout(
 
         camera.raw.translation.y = camera.raw.translation.y.clamp(min_y, max_y);
     }
+}
+
+//====================================================================
+
+pub(crate) fn sys_select_images(
+    layout: Res<LayoutManager>,
+    camera: Res<MainCamera>,
+    mouse: Res<MouseInput>,
+
+    v_pos: View<ImagePos>,
+    mut vm_color: ViewMut<ImageColor>,
+
+    entities: EntitiesView,
+    mut vm_dirty: ViewMut<ImageDirty>,
+    mut vm_selected: ViewMut<ImageSelected>,
+) {
+    let mouse_pos = camera.raw.screen_to_camera(mouse.screen_pos());
+
+    println!(
+        "mouse_pos = {}, screen_pos = {}, camera_pos = {}, final_pos = {}",
+        mouse._pos().trunc(),
+        mouse.screen_pos().trunc(),
+        camera.raw.translation.truncate().trunc(),
+        mouse_pos.trunc(),
+    );
+
+    // Check already selected images
+    let to_remove = (&v_pos, &vm_selected)
+        .iter()
+        .with_id()
+        .filter_map(|(id, (pos, _))| {
+            match aabb_point(
+                // mouse.screen_pos(),
+                mouse_pos,
+                glam::vec2(pos.x, pos.y),
+                layout.tile_size,
+            ) {
+                true => None,
+                false => Some(id),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    to_remove.into_iter().for_each(|id| {
+        vm_selected.remove(id);
+        (&mut vm_color).get(id).unwrap().r = 1.;
+
+        entities.add_component(id, &mut vm_dirty, ImageDirty);
+    });
+
+    // Find newly selected images
+    let image = (&v_pos, !&vm_selected)
+        .iter()
+        .with_id()
+        .find(|(_, (pos, _))| {
+            aabb_point(
+                // mouse.screen_pos(),
+                mouse_pos,
+                glam::vec2(pos.x, pos.y),
+                layout.tile_size,
+            )
+        });
+
+    let id = match image {
+        Some((id, _)) => id,
+        None => return,
+    };
+
+    println!("Found at {:?}", v_pos.get(id).unwrap().to_array());
+
+    let mut color = (&mut vm_color).get(id).unwrap();
+    color.r = 0.;
+
+    entities.add_component(id, &mut vm_dirty, ImageDirty);
+    entities.add_component(id, &mut vm_selected, ImageSelected);
 }
 
 //====================================================================

@@ -135,53 +135,6 @@ impl CameraUniform {
 
 //--------------------------------------------------
 
-pub struct PerspectiveCamera {
-    pub up: glam::Vec3,
-    pub aspect: f32,
-    pub fovy: f32,
-    pub z_near: f32,
-    pub z_far: f32,
-
-    pub translation: glam::Vec3,
-    pub rotation: glam::Quat,
-}
-impl Default for PerspectiveCamera {
-    fn default() -> Self {
-        Self {
-            up: glam::Vec3::Y,
-            aspect: 1.7777777778,
-            fovy: 45.,
-            z_near: 0.1,
-            z_far: 1000000.,
-
-            translation: glam::Vec3::ZERO,
-            rotation: glam::Quat::IDENTITY,
-        }
-    }
-}
-
-impl Camera for PerspectiveCamera {
-    fn into_uniform(&self) -> CameraUniform {
-        CameraUniform::new(self.get_projection(), self.translation.into())
-    }
-}
-
-impl PerspectiveCamera {
-    fn get_projection(&self) -> [f32; 16] {
-        let forward = (self.rotation * glam::Vec3::Z).normalize();
-
-        let projection_matrix =
-            glam::Mat4::perspective_lh(self.fovy, self.aspect, self.z_near, self.z_far);
-
-        let view_matrix =
-            glam::Mat4::look_at_lh(self.translation, self.translation + forward, self.up);
-
-        (projection_matrix * view_matrix).to_cols_array()
-    }
-}
-
-//--------------------------------------------------
-
 #[derive(Debug)]
 pub struct OrthographicCamera {
     pub left: f32,
@@ -263,6 +216,58 @@ impl OrthographicCamera {
         self.right = half_width;
         self.bottom = -half_height;
         self.top = half_height;
+    }
+
+    pub fn screen_to_camera(&self, screen_pos: glam::Vec2) -> glam::Vec2 {
+        screen_pos + self.translation.truncate()
+            - glam::vec2((self.right - self.left) / 2., (self.top - self.bottom) / 2.)
+    }
+}
+
+//--------------------------------------------------
+
+pub struct PerspectiveCamera {
+    pub up: glam::Vec3,
+    pub aspect: f32,
+    pub fovy: f32,
+    pub z_near: f32,
+    pub z_far: f32,
+
+    pub translation: glam::Vec3,
+    pub rotation: glam::Quat,
+}
+impl Default for PerspectiveCamera {
+    fn default() -> Self {
+        Self {
+            up: glam::Vec3::Y,
+            aspect: 1.7777777778,
+            fovy: 45.,
+            z_near: 0.1,
+            z_far: 1000000.,
+
+            translation: glam::Vec3::ZERO,
+            rotation: glam::Quat::IDENTITY,
+        }
+    }
+}
+
+impl Camera for PerspectiveCamera {
+    fn into_uniform(&self) -> CameraUniform {
+        CameraUniform::new(self.get_projection(), self.translation.into())
+    }
+}
+
+impl PerspectiveCamera {
+    fn get_projection(&self) -> [f32; 16] {
+        let forward = (self.rotation * glam::Vec3::Z).normalize();
+
+        let projection_matrix =
+            glam::Mat4::perspective_lh(self.fovy, self.aspect, self.z_near, self.z_far);
+
+        let view_matrix =
+            glam::Mat4::look_at_lh(self.translation, self.translation + forward, self.up);
+
+        (projection_matrix * view_matrix).to_cols_array()
     }
 }
 

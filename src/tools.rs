@@ -10,6 +10,8 @@ use ahash::{HashSet, HashSetExt};
 use shipyard::Unique;
 use winit::keyboard::KeyCode;
 
+use crate::window::WindowSize;
+
 //====================================================================
 
 pub type Res<'a, T> = shipyard::UniqueView<'a, T>;
@@ -112,13 +114,6 @@ pub struct Rect {
 }
 
 impl Rect {
-    const ZERO: Self = Rect {
-        x: 0.,
-        y: 0.,
-        width: 0.,
-        height: 0.,
-    };
-
     pub fn from_size(width: f32, height: f32) -> Self {
         Self {
             x: 0.,
@@ -271,6 +266,7 @@ pub(crate) fn sys_reset_key_input(mut keys: ResMut<Input<KeyCode>>) {
 #[derive(Unique, Debug, Default)]
 pub(crate) struct MouseInput {
     pos: glam::Vec2,
+    screen_pos: glam::Vec2,
     pos_delta: glam::Vec2,
     scroll: glam::Vec2,
 }
@@ -282,8 +278,13 @@ impl MouseInput {
     }
 
     #[inline]
-    pub fn pos(&self) -> glam::Vec2 {
+    pub fn _pos(&self) -> glam::Vec2 {
         self.pos
+    }
+
+    #[inline]
+    pub fn screen_pos(&self) -> glam::Vec2 {
+        self.screen_pos
     }
 }
 
@@ -291,13 +292,67 @@ pub(crate) fn sys_process_wheel(wheel: [f32; 2], mut mouse: ResMut<MouseInput>) 
     mouse.scroll += glam::Vec2::from(wheel);
 }
 
-pub(crate) fn sys_process_mouse_pos(pos: [f32; 2], mut mouse: ResMut<MouseInput>) {
+pub(crate) fn sys_process_mouse_pos(
+    pos: [f32; 2],
+    mut mouse: ResMut<MouseInput>,
+    size: Res<WindowSize>,
+) {
     mouse.pos = pos.into();
+
+    mouse.screen_pos = glam::vec2(mouse.pos.x, size.height() as f32 - mouse.pos.y as f32);
+    // let half_size = glam::vec2(size.width() as f32 / 2., size.height() as f32 / 2.);
+    // mouse.screen_pos = pos - half_size - camera.raw.translation.truncate();
+
+    // println!("pos = {}, Screen pos = {}", mouse.pos, mouse.screen_pos);
 }
 
 pub(crate) fn sys_reset_mouse_input(mut mouse: ResMut<MouseInput>) {
     mouse.pos_delta = glam::Vec2::ZERO;
     mouse.scroll = glam::Vec2::ZERO;
 }
+
+//====================================================================
+
+pub(crate) fn aabb_point(point: glam::Vec2, area_pos: glam::Vec2, area_size: glam::Vec2) -> bool {
+    let dx = point.x - area_pos.x;
+    let px = area_size.x / 2. - dx.abs();
+
+    if px <= 0. {
+        return false;
+    }
+
+    let dy = point.y - area_pos.y;
+    let py = area_size.y / 2. - dy.abs();
+
+    if py <= 0. {
+        return false;
+    }
+
+    true
+}
+
+// pub(crate) fn aabb(
+//     pos_a: glam::Vec2,
+//     size_a: glam::Vec2,
+//     pos_b: glam::Vec2,
+//     size_b: glam::Vec2,
+// ) -> bool {
+//     let half_a = glam::vec2(size_a.x / 2., size_a.y / 2.);
+//     let half_b = glam::vec2(size_b.x / 2., size_b.y / 2.);
+
+//     let a_min_x = pos_a.x - half_a.x;
+//     let a_max_x = pos_a.x + half_a.x;
+
+//     let b_min_x = pos_b.x - half_b.x;
+//     let b_max_x = pos_b.x + half_b.x;
+
+//     let a_min_y = pos_a.y - half_a.y;
+//     let a_max_y = pos_a.y + half_a.y;
+
+//     let b_min_y = pos_b.y - half_b.y;
+//     let b_max_y = pos_b.y + half_b.y;
+
+//     a_min_x <= b_max_x && a_max_x >= b_min_x && a_min_y <= b_max_y && a_max_y >= b_min_y
+// }
 
 //====================================================================

@@ -143,7 +143,8 @@ impl App {
         // Any other stuff
         self.world
             .and_run(camera::sys_update_camera)
-            .and_run(layout::sys_navigate_layout);
+            .and_run(layout::sys_navigate_layout)
+            .and_run(layout::sys_select_images);
 
         // Format images - Always do second to last
         self.world

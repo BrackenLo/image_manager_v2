@@ -58,10 +58,10 @@ impl Default for ImageSize {
 
 #[derive(Component)]
 pub(crate) struct ImageColor {
-    r: f32,
-    g: f32,
-    b: f32,
-    a: f32,
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
 }
 
 impl ImageColor {
@@ -102,6 +102,12 @@ pub(crate) struct ImageIndex {
 #[derive(Component)]
 pub(crate) struct ImageDirty;
 
+#[derive(Component)]
+pub(crate) struct ImageHighlighted;
+
+#[derive(Component)]
+pub(crate) struct ImageSelected;
+
 //====================================================================
 
 #[derive(Component)]
@@ -117,6 +123,11 @@ pub(crate) struct ImageDirtier<'v> {
 }
 
 impl ImageDirtier<'_> {
+    #[inline]
+    pub fn mark_dirty(&mut self, id: EntityId) {
+        self.entities.add_component(id, &mut self.dirty, ImageDirty);
+    }
+
     pub fn mark_all_dirty(&mut self) {
         (&self.index)
             .iter()
