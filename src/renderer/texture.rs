@@ -13,7 +13,7 @@ use super::Device;
 //====================================================================
 
 #[derive(Unique)]
-pub(crate) struct DepthTexture {
+pub struct DepthTexture {
     // Main Depth texture
     depth_texture: Texture,
 }
@@ -54,7 +54,7 @@ pub(crate) fn sys_resize_depth_texture(
 
 //====================================================================
 
-pub(crate) struct Texture {
+pub struct Texture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,

@@ -21,6 +21,8 @@ use crate::{
     renderer::{
         self,
         camera::{self, MainCamera},
+        circle_pipeline::CirclePipeline,
+        text::TextPipeline,
         texture::DepthTexture,
         texture_pipeline::TexturePipeline,
         Device, Queue, RenderPassTools, RenderPassToolsDesc, Surface,
@@ -49,6 +51,7 @@ impl App {
                 .unwrap(),
         );
 
+        // Setup window and renderer components
         world
             .and_run_with_data(window::sys_add_window, window.clone())
             .and_run_with_data(renderer::sys_setup_renderer_components, window);
@@ -75,7 +78,8 @@ impl App {
             .and_run(renderer::sys_resize)
             .and_run(renderer::camera::sys_resize_camera)
             .and_run(renderer::texture::sys_resize_depth_texture)
-            .and_run(layout::sys_resize_layout);
+            .and_run(layout::sys_resize_layout)
+            .and_run(renderer::text::sys_resize_text_pipeline);
     }
 
     //--------------------------------------------------
@@ -90,7 +94,9 @@ impl App {
         self.world
             .and_run(renderer::camera::sys_setup_camera)
             .and_run(renderer::texture::sys_setup_depth_texture)
-            .and_run(renderer::sys_setup_pipelines);
+            .and_run(renderer::sys_setup_pipelines)
+            .and_run(renderer::text::sys_setup_text_pipeline)
+            .and_run(debug::sys_setup_mouse_tracker);
 
         let args: Vec<String> = env::args().collect();
         log::trace!("Args {:?}", args);
@@ -144,12 +150,15 @@ impl App {
         self.world
             .and_run(camera::sys_update_camera)
             .and_run(layout::sys_navigate_layout)
-            .and_run(layout::sys_select_images);
+            .and_run(layout::sys_select_images)
+            .and_run(debug::sys_update_mouse_tracker);
 
         // Format images - Always do second to last
         self.world
             .and_run(layout::sys_order_images)
-            .and_run(layout::sys_rebuild_images);
+            .and_run(layout::sys_rebuild_images)
+            .and_run(renderer::text::sys_prep_text)
+            .and_run(renderer::circle_pipeline::sys_update_circle_pipeline);
 
         // Clear up
         self.world
@@ -174,6 +183,8 @@ impl App {
 
         self.world.run(sys_render);
         self.world.run(sys_finish_render);
+
+        self.world.run(renderer::text::sys_trim_text_pipeline);
     }
 
     //--------------------------------------------------
@@ -201,22 +212,36 @@ fn sys_render(
     depth: Res<DepthTexture>,
     viewport: Res<ImageViewport>,
 
+    text_pipeline: Res<TextPipeline>,
     texture_pipeline: Res<TexturePipeline>,
+    circle_pipeline: Res<CirclePipeline>,
+
     camera: Res<MainCamera>,
     v_images: View<Image>,
 ) {
-    let desc = RenderPassToolsDesc {
-        use_depth: Some(&depth.main_texture().view),
-        clear_color: Some([0.3, 0.3, 0.3, 1.]),
-    };
+    {
+        let desc = RenderPassToolsDesc {
+            use_depth: Some(&depth.main_texture().view),
+            clear_color: Some([0.3, 0.3, 0.3, 1.]),
+        };
 
-    tools.render_pass_desc(desc, |pass| {
-        // ui_pipeline.render(pass, &camera, ui.instances());
+        let mut pass = tools.render_pass_desc(desc);
 
         let images = v_images.iter().map(|image| &image.instance);
+        texture_pipeline.render(
+            &mut pass,
+            &camera,
+            images.into_iter(),
+            // Some(viewport.inner()),
+            None,
+        );
+    }
 
-        texture_pipeline.render(pass, &camera, images.into_iter(), Some(viewport.inner()))
-    });
+    {
+        let mut pass = tools.render_pass_desc(RenderPassToolsDesc::none());
+        text_pipeline.render(&mut pass);
+        circle_pipeline.render(&mut pass, &camera);
+    }
 }
 
 impl App {

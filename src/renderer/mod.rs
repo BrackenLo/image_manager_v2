@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use camera::MainCamera;
+use circle_pipeline::CirclePipeline;
 use pollster::FutureExt;
 use shipyard::{AllStoragesView, Unique};
 use texture_pipeline::TexturePipeline;
@@ -13,20 +14,22 @@ use crate::{
 };
 
 pub mod camera;
+pub mod circle_pipeline;
+pub mod text;
 pub mod texture;
 pub mod texture_pipeline;
 pub mod tools;
 
 //====================================================================
 
-pub(crate) trait Vertex: bytemuck::Pod {
+pub trait Vertex: bytemuck::Pod {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;
 }
 
 //====================================================================
 
 #[derive(Unique)]
-pub(crate) struct Device(wgpu::Device);
+pub struct Device(wgpu::Device);
 impl Device {
     #[inline]
     pub fn inner(&self) -> &wgpu::Device {
@@ -35,7 +38,7 @@ impl Device {
 }
 
 #[derive(Unique)]
-pub(crate) struct Queue(wgpu::Queue);
+pub struct Queue(wgpu::Queue);
 impl Queue {
     #[inline]
     pub fn inner(&self) -> &wgpu::Queue {
@@ -44,7 +47,7 @@ impl Queue {
 }
 
 #[derive(Unique)]
-pub(crate) struct Surface(wgpu::Surface<'static>);
+pub struct Surface(wgpu::Surface<'static>);
 impl Surface {
     #[inline]
     pub fn inner(&self) -> &wgpu::Surface {
@@ -53,7 +56,7 @@ impl Surface {
 }
 
 #[derive(Unique)]
-pub(crate) struct SurfaceConfig(wgpu::SurfaceConfiguration);
+pub struct SurfaceConfig(wgpu::SurfaceConfiguration);
 impl SurfaceConfig {
     #[inline]
     pub fn inner(&self) -> &wgpu::SurfaceConfiguration {
@@ -136,8 +139,11 @@ pub(crate) fn sys_setup_pipelines(
     camera: Res<MainCamera>,
 ) {
     let texture_pipeline = TexturePipeline::new(device.inner(), config.inner(), &camera);
+    let circle_pipeline = CirclePipeline::new(device.inner(), config.inner(), &camera);
 
-    all_storages.insert(texture_pipeline);
+    all_storages
+        .insert(texture_pipeline)
+        .insert(circle_pipeline);
 }
 
 pub(crate) fn sys_resize(
@@ -155,6 +161,15 @@ pub(crate) fn sys_resize(
 pub struct RenderPassToolsDesc<'a> {
     pub use_depth: Option<&'a wgpu::TextureView>,
     pub clear_color: Option<[f64; 4]>,
+}
+
+impl RenderPassToolsDesc<'_> {
+    pub fn none() -> Self {
+        Self {
+            use_depth: None,
+            clear_color: None,
+        }
+    }
 }
 
 impl Default for RenderPassToolsDesc<'_> {
@@ -204,18 +219,7 @@ impl RenderPassTools {
         self.surface_texture.present();
     }
 
-    #[inline]
-    pub fn render_pass<'b, F>(&'b mut self, f: F)
-    where
-        F: for<'encoder> FnOnce(&mut wgpu::RenderPass),
-    {
-        self.render_pass_desc(RenderPassToolsDesc::default(), f);
-    }
-
-    pub fn render_pass_desc<'b, F>(&'b mut self, desc: RenderPassToolsDesc, f: F)
-    where
-        F: for<'encoder> FnOnce(&mut wgpu::RenderPass),
-    {
+    pub fn render_pass_desc(&mut self, desc: RenderPassToolsDesc) -> wgpu::RenderPass {
         // Clear the current depth buffer and use it.
         let depth_stencil_attachment = match desc.use_depth {
             Some(view) => Some(wgpu::RenderPassDepthStencilAttachment {
@@ -239,7 +243,7 @@ impl RenderPassTools {
             None => wgpu::LoadOp::Load,
         };
 
-        let mut render_pass = self.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let render_pass = self.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Tools Basic Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &self.surface_view,
@@ -254,7 +258,7 @@ impl RenderPassTools {
             occlusion_query_set: None,
         });
 
-        f(&mut render_pass);
+        render_pass
     }
 }
 

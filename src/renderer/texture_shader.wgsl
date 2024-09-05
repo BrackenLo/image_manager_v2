@@ -39,16 +39,12 @@ struct VertexOut {
 fn vs_main(in: VertexIn) -> VertexOut {
     var out: VertexOut;
 
-    var vertex_pos = in.vertex_position;
-    vertex_pos.x *= instance.size.x;
-    vertex_pos.y *= instance.size.y;
+    var vertex_pos = in.vertex_position 
+        * instance.size 
+        + instance.pos;
 
-    vertex_pos.x += instance.pos.x;
-    vertex_pos.y += instance.pos.y;
-
-    out.clip_position = 
-        camera.projection * 
-        vec4<f32>(vertex_pos, 5., 1.);
+    out.clip_position = camera.projection 
+        * vec4<f32>(vertex_pos, 0., 1.);
 
     out.uv = in.uv;
     out.color = instance.color;

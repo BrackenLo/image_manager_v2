@@ -23,10 +23,10 @@ use crate::{
 
 //====================================================================
 
-pub(crate) type TextureID = u64;
+pub type TextureID = u64;
 
 #[derive(Unique)]
-pub(crate) struct Storage {
+pub struct Storage {
     textures: AHashMap<TextureID, TextureData>,
 
     loading: bool,
@@ -39,7 +39,7 @@ pub(crate) struct Storage {
     image_receiver: Receiver<ImageChannel>,
 }
 
-pub(crate) struct TextureData {
+pub struct TextureData {
     texture: Texture,
     path: PathBuf,
 }

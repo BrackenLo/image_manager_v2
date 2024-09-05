@@ -1,13 +1,21 @@
 //====================================================================
 
-use shipyard::Unique;
+use shipyard::{AllStoragesView, EntitiesViewMut, EntityId, Get, Unique, ViewMut};
 
-use crate::tools::{Res, ResMut, Time};
+use crate::{
+    images::Pos,
+    renderer::{
+        camera::MainCamera,
+        circle_pipeline::Circle,
+        text::{TextBuffer, TextBufferDescriptor, TextPipeline},
+    },
+    tools::{MouseInput, Res, ResMut, Time},
+};
 
 //====================================================================
 
 #[derive(Unique)]
-pub(crate) struct Upkeep {
+pub struct Upkeep {
     second_tracker: f32,
     frame_count_this_second: u16,
 
@@ -54,6 +62,66 @@ impl Upkeep {
 
 pub(crate) fn sys_tick_upkeep(mut upkeep: ResMut<Upkeep>, time: Res<Time>) {
     upkeep.tick(time.delta_seconds(), false);
+}
+
+//====================================================================
+
+#[derive(Unique)]
+pub struct MouseTracker {
+    text_id: EntityId,
+    circle_id: EntityId,
+}
+
+pub(crate) fn sys_setup_mouse_tracker(
+    all_storages: AllStoragesView,
+    mut entities: EntitiesViewMut,
+
+    mut text: ResMut<TextPipeline>,
+    mut vm_text_buffer: ViewMut<TextBuffer>,
+
+    mut vm_circles: ViewMut<Circle>,
+    mut vm_pos: ViewMut<Pos>,
+) {
+    let text_id = entities.add_entity(
+        &mut vm_text_buffer,
+        TextBuffer::new(&mut text, &TextBufferDescriptor::default()),
+    );
+
+    let circle_id = entities.add_entity(
+        (&mut vm_circles, &mut vm_pos),
+        (Circle { radius: 30. }, Pos { x: 0., y: 0. }),
+    );
+
+    let tracker = MouseTracker { text_id, circle_id };
+
+    all_storages.add_unique(tracker);
+}
+
+pub(crate) fn sys_update_mouse_tracker(
+    tracker: ResMut<MouseTracker>,
+    camera: Res<MainCamera>,
+    mouse: Res<MouseInput>,
+
+    mut text_pipeline: ResMut<TextPipeline>,
+    mut vm_text_buffer: ViewMut<TextBuffer>,
+    mut vm_pos: ViewMut<Pos>,
+) {
+    let mouse_pos = camera.raw.screen_to_camera(mouse.screen_pos());
+
+    let text = format!(
+        "mouse_pos = {}, screen_pos = {}\n camera_pos = {}, final_pos = {}",
+        mouse._pos().trunc(),
+        mouse.screen_pos().trunc(),
+        camera.raw.translation.truncate().trunc(),
+        mouse_pos.trunc(),
+    );
+
+    let mut buffer = (&mut vm_text_buffer).get(tracker.text_id).unwrap();
+    buffer.set_text(&mut text_pipeline, &text);
+
+    let mut pos = (&mut vm_pos).get(tracker.circle_id).unwrap();
+    pos.x = mouse_pos.x;
+    pos.y = mouse_pos.y;
 }
 
 //====================================================================

@@ -9,13 +9,13 @@ use crate::renderer::texture_pipeline::TextureInstance;
 
 //====================================================================
 
-#[derive(Component, Default)]
-pub(crate) struct ImagePos {
+#[derive(Component, Default, Debug)]
+pub struct Pos {
     pub x: f32,
     pub y: f32,
 }
 
-impl ImagePos {
+impl Pos {
     #[inline]
     pub fn _new(x: f32, y: f32) -> Self {
         Self { x, y }
@@ -29,7 +29,7 @@ impl ImagePos {
 //--------------------------------------------------
 
 #[derive(Component)]
-pub(crate) struct ImageSize {
+pub struct ImageSize {
     pub width: f32,
     pub height: f32,
 }
@@ -57,14 +57,14 @@ impl Default for ImageSize {
 //--------------------------------------------------
 
 #[derive(Component)]
-pub(crate) struct ImageColor {
+pub struct Color {
     pub r: f32,
     pub g: f32,
     pub b: f32,
     pub a: f32,
 }
 
-impl ImageColor {
+impl Color {
     #[inline]
     pub fn _new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
@@ -75,7 +75,7 @@ impl ImageColor {
     }
 }
 
-impl Default for ImageColor {
+impl Default for Color {
     fn default() -> Self {
         Self {
             r: 1.,
@@ -89,34 +89,34 @@ impl Default for ImageColor {
 //--------------------------------------------------
 
 #[derive(Component)]
-pub(crate) struct Image {
+pub struct Image {
     pub id: u64,
     pub instance: TextureInstance,
 }
 
 #[derive(Component)]
-pub(crate) struct ImageIndex {
+pub struct ImageIndex {
     pub index: u32,
 }
 
 #[derive(Component)]
-pub(crate) struct ImageDirty;
+pub struct ImageDirty;
 
 #[derive(Component)]
-pub(crate) struct ImageHighlighted;
+pub struct ImageHighlighted;
 
 #[derive(Component)]
-pub(crate) struct ImageSelected;
+pub struct ImageSelected;
 
 //====================================================================
 
 #[derive(Component)]
-pub(crate) struct ToRemove;
+pub struct ToRemove;
 
 //====================================================================
 
 #[derive(Borrow, BorrowInfo)]
-pub(crate) struct ImageDirtier<'v> {
+pub struct ImageDirtier<'v> {
     entities: EntitiesViewMut<'v>,
     index: View<'v, ImageIndex>,
     dirty: ViewMut<'v, ImageDirty>,
@@ -137,12 +137,12 @@ impl ImageDirtier<'_> {
 }
 
 #[derive(Borrow, BorrowInfo)]
-pub(crate) struct ImageCreator<'v> {
+pub struct ImageCreator<'v> {
     entities: EntitiesViewMut<'v>,
 
-    pos: ViewMut<'v, ImagePos>,
+    pos: ViewMut<'v, Pos>,
     size: ViewMut<'v, ImageSize>,
-    color: ViewMut<'v, ImageColor>,
+    color: ViewMut<'v, Color>,
     image: ViewMut<'v, Image>,
     index: ViewMut<'v, ImageIndex>,
     dirty: ViewMut<'v, ImageDirty>,
@@ -165,9 +165,9 @@ impl ImageCreator<'_> {
 
     pub fn spawn(&mut self, image: Image, index: u32) -> EntityId {
         self.spawn_config(
-            ImagePos::default(),
+            Pos::default(),
             ImageSize::default(),
-            ImageColor::default(),
+            Color::default(),
             image,
             index,
         )
@@ -175,9 +175,9 @@ impl ImageCreator<'_> {
 
     pub fn spawn_config(
         &mut self,
-        pos: ImagePos,
+        pos: Pos,
         size: ImageSize,
-        color: ImageColor,
+        color: Color,
         image: Image,
         index: u32,
     ) -> EntityId {

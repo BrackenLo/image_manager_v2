@@ -3,23 +3,25 @@
 use app::App;
 use winit::{application::ApplicationHandler, event_loop::EventLoop};
 
-pub mod app;
-pub mod debug;
-pub mod images;
-pub mod layout;
-pub mod renderer;
-pub mod storage;
-pub mod tools;
-pub mod window;
+pub(crate) mod app;
+pub(crate) mod debug;
+pub(crate) mod images;
+pub(crate) mod layout;
+pub(crate) mod renderer;
+pub(crate) mod storage;
+pub(crate) mod tools;
+pub(crate) mod window;
 
 //====================================================================
+
+const NAME: &str = env!("CARGO_PKG_NAME");
 
 fn main() {
     println!("Hello, world!");
 
     env_logger::Builder::new()
         .filter_module("wgpu", log::LevelFilter::Warn)
-        .filter_module("image_manager_v2", log::LevelFilter::Trace)
+        .filter_module(NAME, log::LevelFilter::Trace)
         .format_timestamp(None)
         .init();
 

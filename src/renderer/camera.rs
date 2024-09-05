@@ -13,7 +13,7 @@ use super::{Device, Queue};
 //====================================================================
 
 #[derive(Unique)]
-pub(crate) struct MainCamera {
+pub struct MainCamera {
     camera_buffer: wgpu::Buffer,
     camera_bind_group_layout: wgpu::BindGroupLayout,
     camera_bind_group: wgpu::BindGroup,
@@ -95,11 +95,14 @@ pub(crate) fn sys_setup_camera(
 
 pub(crate) fn sys_resize_camera(mut camera: ResMut<MainCamera>, size: Res<WindowSize>) {
     let half_width = size.width() as f32 / 2.;
+    let half_height = size.height() as f32 / 2.;
 
     camera.raw.left = -half_width;
     camera.raw.right = half_width;
-    camera.raw.top = 0.;
-    camera.raw.bottom = -(size.height() as f32);
+    // camera.raw.top = 0.;
+    // camera.raw.bottom = -(size.height() as f32);
+    camera.raw.top = half_height;
+    camera.raw.bottom = -half_height;
 }
 
 pub(crate) fn sys_update_camera(queue: Res<Queue>, camera: ResMut<MainCamera>) {
@@ -181,8 +184,9 @@ impl OrthographicCamera {
             self.z_far,
         );
 
+        // BUG  - find out why camera axis is wrong way around
         let transform_matrix =
-            glam::Mat4::from_rotation_translation(self.rotation, self.translation);
+            glam::Mat4::from_rotation_translation(self.rotation, -self.translation);
 
         (projection_matrix * transform_matrix).to_cols_array()
     }
@@ -197,13 +201,12 @@ impl OrthographicCamera {
         }
     }
 
-    pub fn new_centered(half_width: f32, half_height: f32, x: f32, y: f32) -> Self {
+    pub fn new_centered(half_width: f32, half_height: f32) -> Self {
         Self {
             left: -half_width,
             right: half_width,
             bottom: -half_height,
             top: half_height,
-            translation: glam::Vec3::new(x, y, 0.),
             ..Default::default()
         }
     }
@@ -236,6 +239,7 @@ pub struct PerspectiveCamera {
     pub translation: glam::Vec3,
     pub rotation: glam::Quat,
 }
+
 impl Default for PerspectiveCamera {
     fn default() -> Self {
         Self {

@@ -4,9 +4,7 @@ use shipyard::{EntitiesView, Get, IntoIter, IntoWithId, Remove, Unique, View, Vi
 use winit::keyboard::KeyCode;
 
 use crate::{
-    images::{
-        Image, ImageColor, ImageDirtier, ImageDirty, ImageIndex, ImagePos, ImageSelected, ImageSize,
-    },
+    images::{Color, Image, ImageDirtier, ImageDirty, ImageIndex, ImageSelected, ImageSize, Pos},
     renderer::{camera::MainCamera, texture_pipeline::RawTextureInstance, Queue},
     tools::{aabb_point, Input, MouseInput, Rect, Res, ResMut, Time},
     window::WindowSize,
@@ -15,7 +13,7 @@ use crate::{
 //====================================================================
 
 #[derive(Unique)]
-pub(crate) struct LayoutManager {
+pub struct LayoutManager {
     image_count: u32,
 
     columns: u32,
@@ -87,7 +85,13 @@ pub(crate) fn sys_resize_layout(
 
     mut camera: ResMut<MainCamera>,
 ) {
-    viewport.0 = Rect::from_size(size.width() as f32, (size.height() as f32 - 200.).max(1.));
+    // viewport.0 = Rect::from_size(size.width() as f32, (size.height() as f32 - 200.).max(1.));
+    viewport.0 = Rect::new(
+        0.,
+        100.,
+        size.width() as f32,
+        (size.height() as f32 - 300.).max(1.),
+    );
 
     layout.columns =
         (viewport.0.width as u32 / (layout.tile_size.x + layout.tile_spacing.x) as u32).max(1);
@@ -96,13 +100,13 @@ pub(crate) fn sys_resize_layout(
 
     let row_width = layout.columns as f32 * (layout.tile_size.x + layout.tile_spacing.x);
 
-    camera.raw.translation.x = -(row_width / 2.);
+    camera.raw.translation.x = row_width / 2.;
 }
 
 pub(crate) fn sys_order_images(
     layout: Res<LayoutManager>,
 
-    mut vm_pos: ViewMut<ImagePos>,
+    mut vm_pos: ViewMut<Pos>,
     mut vm_size: ViewMut<ImageSize>,
     v_index: View<ImageIndex>,
     v_dirty: View<ImageDirty>,
@@ -138,9 +142,9 @@ pub(crate) fn sys_order_images(
 pub(crate) fn sys_rebuild_images(
     queue: Res<Queue>,
 
-    v_pos: View<ImagePos>,
+    v_pos: View<Pos>,
     v_size: View<ImageSize>,
-    v_color: View<ImageColor>,
+    v_color: View<Color>,
     v_image: View<Image>,
     v_dirty: View<ImageDirty>,
 ) {
@@ -176,6 +180,15 @@ pub(crate) fn sys_navigate_layout(
 
     mut image_dirtier: ImageDirtier,
 ) {
+    // DEBUG
+    // let a = keys.pressed(KeyCode::KeyA);
+    // let d = keys.pressed(KeyCode::KeyD);
+    // let x = (a as i8 - d as i8) as f32;
+
+    // if x != 0. {
+    //     camera.raw.translation.x += x * 600. * time.delta_seconds();
+    // }
+
     // Mods
     let shift = keys.pressed(KeyCode::ShiftLeft);
     let ctrl = keys.pressed(KeyCode::ControlLeft);
@@ -183,9 +196,9 @@ pub(crate) fn sys_navigate_layout(
     // Move
     let w = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::KeyK);
     let s = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::KeyJ);
-    let mut y = (s as i8 - w as i8) as f32;
+    let mut y = (w as i8 - s as i8) as f32;
     if !ctrl {
-        y -= mouse.scroll().y * 1.4;
+        y += mouse.scroll().y * 1.4;
     }
 
     // Zooming in and out
@@ -216,7 +229,7 @@ pub(crate) fn sys_navigate_layout(
             (viewport.0.width as u32 / (layout.tile_size.x + layout.tile_spacing.x) as u32).max(1);
 
         let row_width = layout.columns as f32 * (layout.tile_size.x + layout.tile_spacing.x);
-        camera.raw.translation.x = -(row_width / 2.);
+        camera.raw.translation.x = row_width / 2.;
 
         // log::debug!("new tile size '{}'", layout.format.tile_max_size);
     }
@@ -232,10 +245,11 @@ pub(crate) fn sys_navigate_layout(
         camera.raw.translation.y += y * delta * speed;
 
         let last_column = (layout.image_count / layout.columns) as f32
-            * (layout.tile_size.y + layout.tile_spacing.y);
+            * (layout.tile_size.y + layout.tile_spacing.y)
+            * -1.;
 
-        let max_y = last_column;
-        let min_y = layout.tile_size.y * -0.8;
+        let min_y = last_column;
+        let max_y = layout.tile_size.y * 0.8;
 
         camera.raw.translation.y = camera.raw.translation.y.clamp(min_y, max_y);
     }
@@ -248,22 +262,15 @@ pub(crate) fn sys_select_images(
     camera: Res<MainCamera>,
     mouse: Res<MouseInput>,
 
-    v_pos: View<ImagePos>,
-    mut vm_color: ViewMut<ImageColor>,
+    v_pos: View<Pos>,
+    mut vm_color: ViewMut<Color>,
+    v_index: View<ImageIndex>,
 
     entities: EntitiesView,
     mut vm_dirty: ViewMut<ImageDirty>,
     mut vm_selected: ViewMut<ImageSelected>,
 ) {
     let mouse_pos = camera.raw.screen_to_camera(mouse.screen_pos());
-
-    println!(
-        "mouse_pos = {}, screen_pos = {}, camera_pos = {}, final_pos = {}",
-        mouse._pos().trunc(),
-        mouse.screen_pos().trunc(),
-        camera.raw.translation.truncate().trunc(),
-        mouse_pos.trunc(),
-    );
 
     // Check already selected images
     let to_remove = (&v_pos, &vm_selected)
@@ -290,10 +297,10 @@ pub(crate) fn sys_select_images(
     });
 
     // Find newly selected images
-    let image = (&v_pos, !&vm_selected)
+    let image = (&v_pos, &v_index, !&vm_selected)
         .iter()
         .with_id()
-        .find(|(_, (pos, _))| {
+        .find(|(_, (pos, _, _))| {
             aabb_point(
                 // mouse.screen_pos(),
                 mouse_pos,
@@ -307,7 +314,7 @@ pub(crate) fn sys_select_images(
         None => return,
     };
 
-    println!("Found at {:?}", v_pos.get(id).unwrap().to_array());
+    // println!("Found at {:?}", v_pos.get(id).unwrap().to_array());
 
     let mut color = (&mut vm_color).get(id).unwrap();
     color.r = 0.;

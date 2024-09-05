@@ -57,13 +57,13 @@ pub const TEXTURE_INDICES: [u16; 6] = [0, 1, 3, 0, 3, 2];
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
-pub(crate) struct RawTextureInstance {
+pub struct RawTextureInstance {
     pub pos: [f32; 2],
     pub size: [f32; 2],
     pub color: [f32; 4],
 }
 
-pub(crate) struct TextureInstance {
+pub struct TextureInstance {
     bind_group: wgpu::BindGroup,
     buffer: wgpu::Buffer,
 
@@ -110,7 +110,7 @@ impl TextureInstance {
 //====================================================================
 
 #[derive(Unique)]
-pub(crate) struct TexturePipeline {
+pub struct TexturePipeline {
     pipeline: wgpu::RenderPipeline,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     pub texture_instance_bind_group_layout: wgpu::BindGroupLayout,

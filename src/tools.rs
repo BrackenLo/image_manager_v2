@@ -114,6 +114,17 @@ pub struct Rect {
 }
 
 impl Rect {
+    #[inline]
+    pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    #[inline]
     pub fn from_size(width: f32, height: f32) -> Self {
         Self {
             x: 0.,
@@ -138,7 +149,7 @@ impl Default for Rect {
 //====================================================================
 
 #[derive(Unique)]
-pub(crate) struct Time {
+pub struct Time {
     elapsed: Instant,
 
     last_frame: Instant,
@@ -185,7 +196,7 @@ pub(crate) fn sys_update_time(mut time: ResMut<Time>) {
 //====================================================================
 
 #[derive(Unique, Debug)]
-pub(crate) struct Input<T>
+pub struct Input<T>
 where
     T: 'static + Send + Sync + Eq + PartialEq + Hash,
 {
@@ -264,7 +275,7 @@ pub(crate) fn sys_reset_key_input(mut keys: ResMut<Input<KeyCode>>) {
 //--------------------------------------------------
 
 #[derive(Unique, Debug, Default)]
-pub(crate) struct MouseInput {
+pub struct MouseInput {
     pos: glam::Vec2,
     screen_pos: glam::Vec2,
     pos_delta: glam::Vec2,
@@ -313,7 +324,7 @@ pub(crate) fn sys_reset_mouse_input(mut mouse: ResMut<MouseInput>) {
 
 //====================================================================
 
-pub(crate) fn aabb_point(point: glam::Vec2, area_pos: glam::Vec2, area_size: glam::Vec2) -> bool {
+pub fn aabb_point(point: glam::Vec2, area_pos: glam::Vec2, area_size: glam::Vec2) -> bool {
     let dx = point.x - area_pos.x;
     let px = area_size.x / 2. - dx.abs();
 

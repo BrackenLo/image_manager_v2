@@ -8,13 +8,13 @@ use super::{texture::Texture, Vertex};
 
 //====================================================================
 
-pub(crate) struct RenderPipelineDescriptor<'a> {
-    primitive: wgpu::PrimitiveState,
-    depth_stencil: Option<wgpu::DepthStencilState>,
-    multisample: wgpu::MultisampleState,
-    fragment_targets: Option<&'a [Option<wgpu::ColorTargetState>]>,
-    multiview: Option<NonZeroU32>,
-    cache: Option<&'a wgpu::PipelineCache>,
+pub struct RenderPipelineDescriptor<'a> {
+    pub primitive: wgpu::PrimitiveState,
+    pub depth_stencil: Option<wgpu::DepthStencilState>,
+    pub multisample: wgpu::MultisampleState,
+    pub fragment_targets: Option<&'a [Option<wgpu::ColorTargetState>]>,
+    pub multiview: Option<NonZeroU32>,
+    pub cache: Option<&'a wgpu::PipelineCache>,
 }
 
 impl<'a> Default for RenderPipelineDescriptor<'a> {
@@ -34,7 +34,7 @@ impl<'a> Default for RenderPipelineDescriptor<'a> {
 }
 
 impl RenderPipelineDescriptor<'_> {
-    pub(crate) fn with_depth_stencil(mut self) -> Self {
+    pub fn with_depth_stencil(mut self) -> Self {
         self.depth_stencil = Some(wgpu::DepthStencilState {
             format: Texture::DEPTH_FORMAT,
             depth_write_enabled: true,
@@ -47,7 +47,7 @@ impl RenderPipelineDescriptor<'_> {
     }
 }
 
-pub(crate) fn create_pipeline(
+pub fn create_pipeline(
     device: &wgpu::Device,
     config: &wgpu::SurfaceConfiguration,
     label: &str,
@@ -101,7 +101,7 @@ pub(crate) fn create_pipeline(
 //====================================================================
 
 /// bind group layout uniform entry
-pub(crate) fn bgl_uniform_entry(
+pub fn bgl_uniform_entry(
     binding: u32,
     visibility: wgpu::ShaderStages,
 ) -> wgpu::BindGroupLayoutEntry {
@@ -117,7 +117,7 @@ pub(crate) fn bgl_uniform_entry(
     }
 }
 
-pub(crate) fn bgl_texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+pub fn bgl_texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
         binding,
         visibility: wgpu::ShaderStages::FRAGMENT,
@@ -130,7 +130,7 @@ pub(crate) fn bgl_texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     }
 }
 
-pub(crate) fn bgl_sampler_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+pub fn bgl_sampler_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
         binding,
         visibility: wgpu::ShaderStages::FRAGMENT,
@@ -139,11 +139,7 @@ pub(crate) fn bgl_sampler_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     }
 }
 
-pub(crate) fn vertex_buffer<T: Vertex>(
-    device: &wgpu::Device,
-    label: &str,
-    data: &[T],
-) -> wgpu::Buffer {
+pub fn vertex_buffer<T: Vertex>(device: &wgpu::Device, label: &str, data: &[T]) -> wgpu::Buffer {
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some(&format!("{} Vertex Buffer", label)),
         contents: bytemuck::cast_slice(data),
@@ -151,7 +147,7 @@ pub(crate) fn vertex_buffer<T: Vertex>(
     })
 }
 
-pub(crate) fn index_buffer(device: &wgpu::Device, label: &str, data: &[u16]) -> wgpu::Buffer {
+pub fn index_buffer(device: &wgpu::Device, label: &str, data: &[u16]) -> wgpu::Buffer {
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some(&format!("{} Index Buffer", label)),
         contents: bytemuck::cast_slice(data),
@@ -161,7 +157,7 @@ pub(crate) fn index_buffer(device: &wgpu::Device, label: &str, data: &[u16]) -> 
 
 //====================================================================
 
-pub(crate) fn update_instance_buffer<T: bytemuck::Pod>(
+pub fn update_instance_buffer<T: bytemuck::Pod>(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
 
