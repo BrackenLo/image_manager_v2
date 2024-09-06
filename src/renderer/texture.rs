@@ -4,7 +4,8 @@ use image::GenericImageView;
 use shipyard::{AllStoragesView, Unique};
 
 use crate::{
-    tools::{Res, ResMut, Size},
+    shipyard_tools::{Res, ResMut},
+    tools::Size,
     window::WindowSize,
 };
 
@@ -35,7 +36,7 @@ impl DepthTexture {
     }
 }
 
-pub(crate) fn sys_setup_depth_texture(
+pub(super) fn sys_setup_depth_texture(
     all_storages: AllStoragesView,
     device: Res<Device>,
     size: Res<WindowSize>,
@@ -44,7 +45,7 @@ pub(crate) fn sys_setup_depth_texture(
     all_storages.add_unique(depth_texture);
 }
 
-pub(crate) fn sys_resize_depth_texture(
+pub(super) fn sys_resize_depth_texture(
     device: Res<Device>,
     mut depth_texture: ResMut<DepthTexture>,
     size: Res<WindowSize>,

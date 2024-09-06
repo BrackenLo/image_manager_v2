@@ -7,7 +7,7 @@ use glyphon::{
 use shipyard::{AllStoragesView, Component, IntoIter, Unique, View};
 
 use crate::{
-    tools::{Res, ResMut},
+    shipyard_tools::{Res, ResMut},
     window::WindowSize,
 };
 
@@ -79,7 +79,7 @@ impl TextPipeline {
     }
 }
 
-pub(crate) fn sys_setup_text_pipeline(
+pub(super) fn sys_setup_text_pipeline(
     all_storages: AllStoragesView,
     device: Res<Device>,
     queue: Res<Queue>,
@@ -89,7 +89,7 @@ pub(crate) fn sys_setup_text_pipeline(
     all_storages.add_unique(pipeline);
 }
 
-pub(crate) fn sys_resize_text_pipeline(
+pub(super) fn sys_resize_text_pipeline(
     queue: Res<Queue>,
     size: Res<WindowSize>,
 
@@ -98,7 +98,7 @@ pub(crate) fn sys_resize_text_pipeline(
     text_pipeline.resize(queue.inner(), size.width(), size.height());
 }
 
-pub(crate) fn sys_prep_text(
+pub(super) fn sys_prep_text(
     device: Res<Device>,
     queue: Res<Queue>,
 
@@ -122,7 +122,7 @@ pub(crate) fn sys_prep_text(
         .unwrap();
 }
 
-pub(crate) fn sys_trim_text_pipeline(mut text_pipeline: ResMut<TextPipeline>) {
+pub(super) fn sys_trim_text_pipeline(mut text_pipeline: ResMut<TextPipeline>) {
     text_pipeline.trim();
 }
 

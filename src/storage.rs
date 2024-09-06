@@ -1,14 +1,15 @@
 //====================================================================
 
 use std::{
+    env,
     hash::{Hash, Hasher},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use ahash::AHashMap;
 use crossbeam_channel::{Receiver, Sender};
 use image::DynamicImage;
-use shipyard::Unique;
+use shipyard::{AllStoragesView, IntoWorkload, Unique, Workload, WorkloadModificator};
 
 use crate::{
     images::{Image, ImageCreator},
@@ -18,8 +19,58 @@ use crate::{
         texture_pipeline::{RawTextureInstance, TextureInstance, TexturePipeline},
         Device, Queue,
     },
-    tools::{Res, ResMut},
+    shipyard_tools::{Plugin, Res, ResMut, Stages},
 };
+
+//====================================================================
+
+pub(crate) struct StoragePlugin;
+
+impl Plugin for StoragePlugin {
+    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder) {
+        workload_builder
+            .add_workload(
+                Stages::PreSetup,
+                Workload::new("").with_system(sys_setup_storage),
+            )
+            .add_workload(
+                Stages::PreUpdate,
+                Workload::new("")
+                    .with_system(sys_process_new_images)
+                    .with_system(sys_spawn_new_images)
+                    .into_sequential_workload()
+                    .run_if(sys_check_loading),
+            )
+            .add_workload(
+                Stages::Update,
+                Workload::new("")
+                    .with_system(sys_load_path)
+                    .with_system(sys_remove_load_images)
+                    .into_sequential_workload(), // .skip_if_missing_unique::<LoadImages>(),
+            );
+    }
+}
+
+fn sys_setup_storage(all_storages: AllStoragesView) {
+    all_storages.add_unique(Storage::new());
+
+    let args: Vec<String> = env::args().collect();
+    log::trace!("Args {:?}", args);
+
+    let path = match args.get(1) {
+        Some(arg) => {
+            let path = Path::new(arg);
+            if !path.is_dir() {
+                panic!("Invalid path provided");
+            }
+
+            PathBuf::from(path)
+        }
+        None => env::current_dir().expect("No path provided and cannot access current directory."),
+    };
+
+    all_storages.add_unique(LoadImages { path });
+}
 
 //====================================================================
 
@@ -45,6 +96,11 @@ pub struct TextureData {
 }
 
 //====================================================================
+
+#[derive(Unique)]
+pub struct LoadImages {
+    pub path: PathBuf,
+}
 
 enum ImageChannel {
     Finished,
@@ -76,10 +132,15 @@ impl Storage {
     }
 }
 
-pub(crate) fn sys_load_path(path: PathBuf, mut storage: ResMut<Storage>) {
-    log::info!("Loading images from path '{:?}'", path);
+fn sys_load_path(mut storage: ResMut<Storage>, to_load: Option<Res<LoadImages>>) {
+    let to_load = match to_load {
+        Some(val) => val,
+        None => return,
+    };
 
-    let dir = std::fs::read_dir(path).unwrap();
+    log::info!("Loading images from path '{:?}'", to_load.path);
+
+    let dir = std::fs::read_dir(&to_load.path).unwrap();
     let entries = dir.into_iter().filter_map(|e| e.ok()).collect::<Vec<_>>();
 
     let images_to_load = entries
@@ -117,6 +178,10 @@ pub(crate) fn sys_load_path(path: PathBuf, mut storage: ResMut<Storage>) {
     std::thread::spawn(move || load_images(images_to_load, load_kill_receiver, image_sender));
 }
 
+fn sys_remove_load_images(all_storages: AllStoragesView) {
+    all_storages.remove_unique::<LoadImages>().ok();
+}
+
 fn load_images(
     images: Vec<PathBuf>,
     load_kill_receiver: Receiver<bool>,
@@ -145,15 +210,11 @@ fn load_images(
     image_sender.send(ImageChannel::Finished).unwrap();
 }
 
-pub(crate) fn sys_check_loading(storage: Res<Storage>) -> bool {
+fn sys_check_loading(storage: Res<Storage>) -> bool {
     storage.loading
 }
 
-pub(crate) fn sys_process_new_images(
-    device: Res<Device>,
-    queue: Res<Queue>,
-    mut storage: ResMut<Storage>,
-) {
+fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: ResMut<Storage>) {
     let mut to_process = Vec::new();
 
     loop {
@@ -191,7 +252,7 @@ pub(crate) fn sys_process_new_images(
     storage.to_spawn.append(&mut textures);
 }
 
-pub(crate) fn sys_spawn_new_images(
+fn sys_spawn_new_images(
     device: Res<Device>,
     pipeline: Res<TexturePipeline>,
 

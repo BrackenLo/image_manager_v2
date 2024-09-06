@@ -8,6 +8,7 @@ ahash = "0.8.11"
 anyhow = "1.0.86"
 bytemuck = { version = "1.17.1", features = ["derive"] }
 crossbeam-channel = "0.5.13"
+enum-iterator = "2.1.0"
 env_logger = "0.11.5"
 glam = "0.29.0"
 glyphon = { git = "https://github.com/grovesNL/glyphon.git" }

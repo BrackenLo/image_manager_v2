@@ -4,7 +4,10 @@ use std::sync::Arc;
 
 use shipyard::{AllStoragesView, Unique};
 
-use crate::tools::{ResMut, Size, UniqueTools};
+use crate::{
+    shipyard_tools::{ResMut, UniqueTools},
+    tools::Size,
+};
 
 //====================================================================
 
@@ -31,13 +34,17 @@ impl WindowSize {
 pub struct Window(Arc<winit::window::Window>);
 impl Window {
     #[inline]
-    pub fn _inner(&self) -> &winit::window::Window {
+    pub fn inner(&self) -> &winit::window::Window {
         &self.0
     }
 
     #[inline]
     pub fn request_redraw(&self) {
         self.0.request_redraw();
+    }
+
+    pub fn arc(&self) -> &Arc<winit::window::Window> {
+        &self.0
     }
 }
 

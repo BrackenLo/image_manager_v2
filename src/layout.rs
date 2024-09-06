@@ -1,14 +1,50 @@
 //====================================================================
 
-use shipyard::{EntitiesView, Get, IntoIter, IntoWithId, Remove, Unique, View, ViewMut};
+use shipyard::{
+    AllStoragesView, EntitiesView, Get, IntoIter, IntoWithId, IntoWorkload, Remove, Unique, View,
+    ViewMut, Workload,
+};
 use winit::keyboard::KeyCode;
 
 use crate::{
     images::{Color, Image, ImageDirtier, ImageDirty, ImageIndex, ImageSelected, ImageSize, Pos},
     renderer::{camera::MainCamera, texture_pipeline::RawTextureInstance, Queue},
-    tools::{aabb_point, Input, MouseInput, Rect, Res, ResMut, Time},
+    shipyard_tools::{Plugin, Res, ResMut, Stages, UniqueTools},
+    tools::{aabb_point, Input, MouseInput, Rect, Time},
     window::WindowSize,
 };
+
+//====================================================================
+
+pub(crate) struct LayoutPlugin;
+
+impl Plugin for LayoutPlugin {
+    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder) {
+        workload_builder
+            .add_workload(
+                Stages::Setup,
+                Workload::new("").with_system(sys_setup_layout),
+            )
+            .add_workload(
+                Stages::Update,
+                Workload::new("")
+                    .with_system(sys_navigate_layout)
+                    .with_system(sys_select_images)
+                    .into_sequential_workload(),
+            )
+            .add_workload(
+                Stages::PreRender,
+                Workload::new("")
+                    .with_system(sys_order_images)
+                    .with_system(sys_rebuild_images)
+                    .into_sequential_workload(),
+            )
+            .add_workload(
+                Stages::Resize,
+                Workload::new("").with_system(sys_resize_layout),
+            );
+    }
+}
 
 //====================================================================
 
@@ -77,7 +113,14 @@ impl Default for LayoutNavigation {
 
 //====================================================================
 
-pub(crate) fn sys_resize_layout(
+fn sys_setup_layout(all_storages: AllStoragesView) {
+    all_storages
+        .insert(LayoutManager::default())
+        .insert(LayoutNavigation::default())
+        .insert(ImageViewport::default());
+}
+
+fn sys_resize_layout(
     size: Res<WindowSize>,
     mut layout: ResMut<LayoutManager>,
     mut viewport: ResMut<ImageViewport>,
@@ -116,7 +159,7 @@ pub(crate) fn sys_resize_layout(
     camera.raw.translation.x = row_width / 2.;
 }
 
-pub(crate) fn sys_order_images(
+fn sys_order_images(
     layout: Res<LayoutManager>,
 
     mut vm_pos: ViewMut<Pos>,
@@ -152,7 +195,7 @@ pub(crate) fn sys_order_images(
         });
 }
 
-pub(crate) fn sys_rebuild_images(
+fn sys_rebuild_images(
     queue: Res<Queue>,
 
     v_pos: View<Pos>,
@@ -181,7 +224,7 @@ pub(crate) fn sys_rebuild_images(
 
 //====================================================================
 
-pub(crate) fn sys_navigate_layout(
+fn sys_navigate_layout(
     mut layout: ResMut<LayoutManager>,
     navigation: Res<LayoutNavigation>,
     viewport: Res<ImageViewport>,
@@ -270,7 +313,7 @@ pub(crate) fn sys_navigate_layout(
 
 //====================================================================
 
-pub(crate) fn sys_select_images(
+fn sys_select_images(
     layout: Res<LayoutManager>,
     camera: Res<MainCamera>,
     mouse: Res<MouseInput>,

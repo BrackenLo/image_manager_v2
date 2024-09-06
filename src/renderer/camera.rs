@@ -4,7 +4,8 @@ use shipyard::{AllStoragesView, Unique};
 use wgpu::util::DeviceExt;
 
 use crate::{
-    tools::{Res, ResMut, Size, UniqueTools},
+    shipyard_tools::{Res, ResMut, UniqueTools},
+    tools::Size,
     window::WindowSize,
 };
 
@@ -83,7 +84,7 @@ impl MainCamera {
     }
 }
 
-pub(crate) fn sys_setup_camera(
+pub(super) fn sys_setup_camera(
     all_storages: AllStoragesView,
     device: Res<Device>,
     size: Res<WindowSize>,
@@ -93,12 +94,10 @@ pub(crate) fn sys_setup_camera(
     all_storages.insert(camera);
 }
 
-pub(crate) fn sys_update_camera(queue: Res<Queue>, camera: ResMut<MainCamera>) {
+pub(super) fn sys_update_camera(queue: Res<Queue>, camera: ResMut<MainCamera>) {
     if camera.is_modified() {
         camera.update_camera(queue.inner());
     }
-
-    camera.clear_modified();
 }
 
 //====================================================================

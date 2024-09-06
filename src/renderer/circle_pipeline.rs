@@ -5,7 +5,7 @@ use wgpu::util::DeviceExt;
 
 use crate::{
     images::Pos,
-    tools::{Res, ResMut},
+    shipyard_tools::{Res, ResMut},
 };
 
 use super::{
@@ -194,7 +194,7 @@ pub struct Circle {
     pub radius: f32,
 }
 
-pub(crate) fn sys_update_circle_pipeline(
+pub(super) fn sys_update_circle_pipeline(
     device: Res<Device>,
     queue: Res<Queue>,
     mut pipeline: ResMut<CirclePipeline>,

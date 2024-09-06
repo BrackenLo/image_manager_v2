@@ -1,15 +1,20 @@
 //====================================================================
 
-use std::sync::Arc;
-
-use camera::MainCamera;
-use circle_pipeline::CirclePipeline;
+use camera::{sys_setup_camera, sys_update_camera, MainCamera};
+use circle_pipeline::{sys_update_circle_pipeline, CirclePipeline};
 use pollster::FutureExt;
-use shipyard::{AllStoragesView, Unique};
+use shipyard::{AllStoragesView, IntoIter, IntoWorkload, Unique, View, Workload};
+use text::{
+    sys_prep_text, sys_resize_text_pipeline, sys_setup_text_pipeline, sys_trim_text_pipeline,
+    TextPipeline,
+};
+use texture::{sys_resize_depth_texture, sys_setup_depth_texture, DepthTexture};
 use texture_pipeline::TexturePipeline;
 
 use crate::{
-    tools::{Res, ResMut, Size, UniqueTools},
+    images::Image,
+    shipyard_tools::{Plugin, Res, ResMut, Stages, UniqueTools},
+    tools::Size,
     window::WindowSize,
 };
 
@@ -19,6 +24,50 @@ pub mod text;
 pub mod texture;
 pub mod texture_pipeline;
 pub mod tools;
+
+//====================================================================
+
+pub(crate) struct RendererPlugin;
+
+impl Plugin for RendererPlugin {
+    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder) {
+        workload_builder
+            .add_workload(
+                Stages::PreSetup,
+                Workload::new("")
+                    .with_system(sys_setup_renderer_components)
+                    .with_system(sys_setup_camera)
+                    .into_sequential_workload(),
+            )
+            .add_workload(
+                Stages::Setup,
+                Workload::new("")
+                    .with_system(sys_setup_misc)
+                    .with_system(sys_setup_depth_texture)
+                    .with_system(sys_setup_pipelines)
+                    .with_system(sys_setup_text_pipeline),
+            )
+            .add_workload(
+                Stages::PreRender,
+                Workload::new("")
+                    .with_system(sys_update_camera)
+                    .with_system(sys_prep_text)
+                    .with_system(sys_update_circle_pipeline),
+            )
+            .add_workload(Stages::Render, Workload::new("").with_system(sys_render))
+            .add_workload(
+                Stages::PostRender,
+                Workload::new("").with_system(sys_trim_text_pipeline),
+            )
+            .add_workload(
+                Stages::Resize,
+                Workload::new("")
+                    .with_system(sys_resize)
+                    .with_system(sys_resize_depth_texture)
+                    .with_system(sys_resize_text_pipeline),
+            );
+    }
+}
 
 //====================================================================
 
@@ -71,13 +120,40 @@ impl SurfaceConfig {
 
 //====================================================================
 
-pub(crate) fn sys_setup_renderer_components(
-    window: Arc<winit::window::Window>,
+#[derive(Unique)]
+pub struct ClearColor {
+    pub r: f64,
+    pub g: f64,
+    pub b: f64,
+    pub a: f64,
+}
+
+impl Default for ClearColor {
+    fn default() -> Self {
+        Self {
+            r: 0.2,
+            g: 0.2,
+            b: 0.2,
+            a: 1.,
+        }
+    }
+}
+
+impl ClearColor {
+    fn to_array(&self) -> [f64; 4] {
+        [self.r, self.g, self.b, self.a]
+    }
+}
+
+//====================================================================
+
+fn sys_setup_renderer_components(
     all_storages: AllStoragesView,
+    window: Res<crate::window::Window>,
 ) {
     log::info!("Creating renderer");
 
-    let size = window.inner_size();
+    let size = window.inner().inner_size();
 
     log::trace!("Creating core wgpu renderer components.");
 
@@ -85,7 +161,8 @@ pub(crate) fn sys_setup_renderer_components(
         backends: wgpu::Backends::PRIMARY,
         ..Default::default()
     });
-    let surface = instance.create_surface(window.clone()).unwrap();
+
+    let surface = instance.create_surface(window.arc().clone()).unwrap();
 
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
@@ -132,7 +209,7 @@ pub(crate) fn sys_setup_renderer_components(
         .insert(SurfaceConfig(config));
 }
 
-pub(crate) fn sys_setup_pipelines(
+fn sys_setup_pipelines(
     all_storages: AllStoragesView,
     device: Res<Device>,
     config: Res<SurfaceConfig>,
@@ -146,7 +223,48 @@ pub(crate) fn sys_setup_pipelines(
         .insert(circle_pipeline);
 }
 
-pub(crate) fn sys_resize(
+fn sys_setup_misc(all_storages: AllStoragesView) {
+    all_storages.add_unique(ClearColor::default());
+}
+
+fn sys_render(
+    mut tools: ResMut<RenderPassTools>,
+    clear_color: Res<ClearColor>,
+    depth: Res<DepthTexture>,
+
+    text_pipeline: Res<TextPipeline>,
+    texture_pipeline: Res<TexturePipeline>,
+    circle_pipeline: Res<CirclePipeline>,
+
+    camera: Res<MainCamera>,
+    v_images: View<Image>,
+) {
+    {
+        let desc = RenderPassToolsDesc {
+            use_depth: Some(&depth.main_texture().view),
+            clear_color: Some(clear_color.to_array()),
+        };
+
+        let mut pass = tools.render_pass_desc(desc);
+
+        let images = v_images.iter().map(|image| &image.instance);
+        texture_pipeline.render(
+            &mut pass,
+            &camera,
+            images.into_iter(),
+            // Some(viewport.inner()), // BUG - fix viewport not working with world space
+            None,
+        );
+        circle_pipeline.render(&mut pass, &camera);
+    }
+
+    {
+        let mut pass = tools.render_pass_desc(RenderPassToolsDesc::none());
+        text_pipeline.render(&mut pass);
+    }
+}
+
+fn sys_resize(
     device: Res<Device>,
     surface: Res<Surface>,
     mut config: ResMut<SurfaceConfig>,

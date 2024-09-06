@@ -2,10 +2,28 @@
 
 use shipyard::{
     AllStoragesViewMut, Borrow, BorrowInfo, Component, EntitiesViewMut, EntityId, IntoIter,
-    IntoWithId, View, ViewMut,
+    IntoWithId, View, ViewMut, Workload,
 };
 
-use crate::renderer::texture_pipeline::TextureInstance;
+use crate::{
+    renderer::texture_pipeline::TextureInstance,
+    shipyard_tools::{Plugin, Stages},
+};
+
+//====================================================================
+
+pub(crate) struct ImagePlugin;
+
+impl Plugin for ImagePlugin {
+    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder) {
+        workload_builder.add_workload(
+            Stages::Last,
+            Workload::new("")
+                .with_system(sys_remove_pending)
+                .with_system(sys_clear_dirty),
+        );
+    }
+}
 
 //====================================================================
 
@@ -197,7 +215,7 @@ impl ImageCreator<'_> {
 
 //====================================================================
 
-pub(crate) fn sys_remove_pending(mut all_storages: AllStoragesViewMut) {
+fn sys_remove_pending(mut all_storages: AllStoragesViewMut) {
     let ids = all_storages
         .borrow::<View<ToRemove>>()
         .unwrap()
@@ -211,7 +229,7 @@ pub(crate) fn sys_remove_pending(mut all_storages: AllStoragesViewMut) {
     });
 }
 
-pub(crate) fn sys_clear_dirty(mut vm_dirty: ViewMut<ImageDirty>) {
+fn sys_clear_dirty(mut vm_dirty: ViewMut<ImageDirty>) {
     vm_dirty.clear();
 }
 

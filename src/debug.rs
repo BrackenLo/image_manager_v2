@@ -1,6 +1,6 @@
 //====================================================================
 
-use shipyard::{AllStoragesView, EntitiesViewMut, EntityId, Get, Unique, ViewMut};
+use shipyard::{AllStoragesView, EntitiesViewMut, EntityId, Get, Unique, ViewMut, Workload};
 
 use crate::{
     images::Pos,
@@ -9,8 +9,35 @@ use crate::{
         circle_pipeline::Circle,
         text::{TextBuffer, TextBufferDescriptor, TextPipeline},
     },
-    tools::{MouseInput, Res, ResMut, Time},
+    shipyard_tools::{Plugin, Res, ResMut, Stages},
+    tools::{MouseInput, Time},
 };
+
+//====================================================================
+
+pub(crate) struct DebugPlugin;
+
+impl Plugin for DebugPlugin {
+    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder) {
+        workload_builder
+            .add_workload(
+                Stages::Setup,
+                Workload::new("")
+                    .with_system(sys_setup_debug)
+                    .with_system(sys_setup_mouse_tracker),
+            )
+            .add_workload(
+                Stages::PreUpdate,
+                Workload::new("")
+                    .with_system(sys_tick_upkeep)
+                    .with_system(sys_update_mouse_tracker),
+            );
+    }
+}
+
+fn sys_setup_debug(all_storages: AllStoragesView) {
+    all_storages.add_unique(Upkeep::new());
+}
 
 //====================================================================
 
@@ -60,7 +87,7 @@ impl Upkeep {
     }
 }
 
-pub(crate) fn sys_tick_upkeep(mut upkeep: ResMut<Upkeep>, time: Res<Time>) {
+fn sys_tick_upkeep(mut upkeep: ResMut<Upkeep>, time: Res<Time>) {
     upkeep.tick(time.delta_seconds(), false);
 }
 
@@ -72,7 +99,7 @@ pub struct MouseTracker {
     circle_id: EntityId,
 }
 
-pub(crate) fn sys_setup_mouse_tracker(
+fn sys_setup_mouse_tracker(
     all_storages: AllStoragesView,
     mut entities: EntitiesViewMut,
 
@@ -97,7 +124,7 @@ pub(crate) fn sys_setup_mouse_tracker(
     all_storages.add_unique(tracker);
 }
 
-pub(crate) fn sys_update_mouse_tracker(
+fn sys_update_mouse_tracker(
     tracker: ResMut<MouseTracker>,
     camera: Res<MainCamera>,
     mouse: Res<MouseInput>,

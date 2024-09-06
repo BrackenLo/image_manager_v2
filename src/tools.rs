@@ -7,71 +7,43 @@ use std::{
 };
 
 use ahash::{HashSet, HashSetExt};
-use shipyard::Unique;
+use shipyard::{AllStoragesView, Unique, Workload};
 use winit::keyboard::KeyCode;
 
-use crate::window::WindowSize;
+use crate::{
+    shipyard_tools::{Plugin, Res, ResMut, Stages, UniqueTools},
+    window::WindowSize,
+};
 
 //====================================================================
 
-pub type Res<'a, T> = shipyard::UniqueView<'a, T>;
-pub type ResMut<'a, T> = shipyard::UniqueViewMut<'a, T>;
+pub(crate) struct ToolsPlugin;
 
-pub trait WorldTools {
-    fn and_run<B, S: shipyard::System<(), B>>(&self, system: S) -> &Self;
-    fn and_run_with_data<Data, B, S: shipyard::System<(Data,), B>>(
-        &self,
-        system: S,
-        data: Data,
-    ) -> &Self;
-}
-
-impl WorldTools for shipyard::World {
-    #[inline]
-    fn and_run<B, S: shipyard::System<(), B>>(&self, system: S) -> &Self {
-        self.run(system);
-        self
-    }
-
-    #[inline]
-    fn and_run_with_data<Data, B, S: shipyard::System<(Data,), B>>(
-        &self,
-        system: S,
-        data: Data,
-    ) -> &Self {
-        self.run_with_data(system, data);
-        self
+impl Plugin for ToolsPlugin {
+    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder) {
+        workload_builder
+            .add_workload(
+                Stages::Setup,
+                Workload::new("").with_system(sys_setup_uniques),
+            )
+            .add_workload(
+                Stages::First,
+                Workload::new("").with_system(sys_update_time),
+            )
+            .add_workload(
+                Stages::Last,
+                Workload::new("")
+                    .with_system(sys_reset_key_input)
+                    .with_system(sys_reset_mouse_input),
+            );
     }
 }
 
-pub trait UniqueTools {
-    fn insert<U: shipyard::Unique + Send + Sync>(&self, unique: U) -> &Self;
-    fn replace<U: shipyard::Unique + Send + Sync>(&self, unique: U);
-}
-
-impl UniqueTools for shipyard::World {
-    #[inline]
-    fn insert<U: shipyard::Unique + Send + Sync>(&self, unique: U) -> &Self {
-        self.add_unique(unique);
-        self
-    }
-
-    fn replace<U: shipyard::Unique + Send + Sync>(&self, unique: U) {
-        self.remove_unique::<U>().ok();
-        self.add_unique(unique);
-    }
-}
-
-impl UniqueTools for shipyard::AllStoragesView<'_> {
-    fn insert<U: shipyard::Unique + Send + Sync>(&self, unique: U) -> &Self {
-        self.add_unique(unique);
-        self
-    }
-
-    fn replace<U: shipyard::Unique + Send + Sync>(&self, unique: U) {
-        self.remove_unique::<U>().ok();
-        self.add_unique(unique);
-    }
+fn sys_setup_uniques(all_storages: AllStoragesView) {
+    all_storages
+        .insert(Time::default())
+        .insert(Input::<KeyCode>::default())
+        .insert(MouseInput::default());
 }
 
 //====================================================================
@@ -171,22 +143,22 @@ impl Default for Time {
 #[allow(dead_code)]
 impl Time {
     #[inline]
-    pub(crate) fn elapsed(&self) -> &Instant {
+    pub fn elapsed(&self) -> &Instant {
         &self.elapsed
     }
 
     #[inline]
-    pub(crate) fn delta(&self) -> &Duration {
+    pub fn delta(&self) -> &Duration {
         &self.delta
     }
 
     #[inline]
-    pub(crate) fn delta_seconds(&self) -> f32 {
+    pub fn delta_seconds(&self) -> f32 {
         self.delta_seconds
     }
 }
 
-pub(crate) fn sys_update_time(mut time: ResMut<Time>) {
+fn sys_update_time(mut time: ResMut<Time>) {
     time.delta = time.last_frame.elapsed();
     time.delta_seconds = time.delta.as_secs_f32();
 
@@ -264,11 +236,11 @@ where
     }
 }
 
-pub(crate) fn sys_process_keypress(key: (KeyCode, bool), mut keys: ResMut<Input<KeyCode>>) {
+pub(super) fn sys_process_keypress(key: (KeyCode, bool), mut keys: ResMut<Input<KeyCode>>) {
     keys.process_input(key.0, key.1);
 }
 
-pub(crate) fn sys_reset_key_input(mut keys: ResMut<Input<KeyCode>>) {
+fn sys_reset_key_input(mut keys: ResMut<Input<KeyCode>>) {
     keys.reset();
 }
 
@@ -299,11 +271,11 @@ impl MouseInput {
     }
 }
 
-pub(crate) fn sys_process_wheel(wheel: [f32; 2], mut mouse: ResMut<MouseInput>) {
+pub(super) fn sys_process_wheel(wheel: [f32; 2], mut mouse: ResMut<MouseInput>) {
     mouse.scroll += glam::Vec2::from(wheel);
 }
 
-pub(crate) fn sys_process_mouse_pos(
+pub(super) fn sys_process_mouse_pos(
     pos: [f32; 2],
     mut mouse: ResMut<MouseInput>,
     size: Res<WindowSize>,
@@ -312,7 +284,7 @@ pub(crate) fn sys_process_mouse_pos(
     mouse.screen_pos = glam::vec2(mouse.pos.x, size.height() as f32 - mouse.pos.y as f32);
 }
 
-pub(crate) fn sys_reset_mouse_input(mut mouse: ResMut<MouseInput>) {
+fn sys_reset_mouse_input(mut mouse: ResMut<MouseInput>) {
     mouse.pos_delta = glam::Vec2::ZERO;
     mouse.scroll = glam::Vec2::ZERO;
 }
