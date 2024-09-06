@@ -76,7 +76,6 @@ impl App {
         self.world
             .and_run_with_data(window::sys_resize, new_size)
             .and_run(renderer::sys_resize)
-            .and_run(renderer::camera::sys_resize_camera)
             .and_run(renderer::texture::sys_resize_depth_texture)
             .and_run(layout::sys_resize_layout)
             .and_run(renderer::text::sys_resize_text_pipeline);
@@ -210,7 +209,6 @@ fn sys_finish_render(all_storages: AllStoragesView, queue: Res<Queue>) {
 fn sys_render(
     mut tools: ResMut<RenderPassTools>,
     depth: Res<DepthTexture>,
-    viewport: Res<ImageViewport>,
 
     text_pipeline: Res<TextPipeline>,
     texture_pipeline: Res<TexturePipeline>,
@@ -232,15 +230,15 @@ fn sys_render(
             &mut pass,
             &camera,
             images.into_iter(),
-            // Some(viewport.inner()),
+            // Some(viewport.inner()), // BUG - fix viewport not working with world space
             None,
         );
+        circle_pipeline.render(&mut pass, &camera);
     }
 
     {
         let mut pass = tools.render_pass_desc(RenderPassToolsDesc::none());
         text_pipeline.render(&mut pass);
-        circle_pipeline.render(&mut pass, &camera);
     }
 }
 

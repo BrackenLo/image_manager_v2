@@ -130,7 +130,7 @@ impl CirclePipeline {
             //     })]),
             //     ..Default::default()
             // },
-            tools::RenderPipelineDescriptor::default(),
+            tools::RenderPipelineDescriptor::default().with_depth_stencil(),
         );
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

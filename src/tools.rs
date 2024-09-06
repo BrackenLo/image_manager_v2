@@ -309,12 +309,7 @@ pub(crate) fn sys_process_mouse_pos(
     size: Res<WindowSize>,
 ) {
     mouse.pos = pos.into();
-
     mouse.screen_pos = glam::vec2(mouse.pos.x, size.height() as f32 - mouse.pos.y as f32);
-    // let half_size = glam::vec2(size.width() as f32 / 2., size.height() as f32 / 2.);
-    // mouse.screen_pos = pos - half_size - camera.raw.translation.truncate();
-
-    // println!("pos = {}, Screen pos = {}", mouse.pos, mouse.screen_pos);
 }
 
 pub(crate) fn sys_reset_mouse_input(mut mouse: ResMut<MouseInput>) {

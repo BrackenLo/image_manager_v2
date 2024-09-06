@@ -44,7 +44,7 @@ fn vs_main(in: VertexIn) -> VertexOut {
         + instance.pos;
 
     out.clip_position = camera.projection 
-        * vec4<f32>(vertex_pos, 0., 1.);
+        * vec4<f32>(vertex_pos, 2., 1.);
 
     out.uv = in.uv;
     out.color = instance.color;

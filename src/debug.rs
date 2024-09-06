@@ -89,7 +89,7 @@ pub(crate) fn sys_setup_mouse_tracker(
 
     let circle_id = entities.add_entity(
         (&mut vm_circles, &mut vm_pos),
-        (Circle { radius: 30. }, Pos { x: 0., y: 0. }),
+        (Circle { radius: 5. }, Pos { x: 0., y: 0. }),
     );
 
     let tracker = MouseTracker { text_id, circle_id };

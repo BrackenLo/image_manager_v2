@@ -85,13 +85,14 @@ pub(crate) fn sys_resize_layout(
 
     mut camera: ResMut<MainCamera>,
 ) {
-    // viewport.0 = Rect::from_size(size.width() as f32, (size.height() as f32 - 200.).max(1.));
-    viewport.0 = Rect::new(
-        0.,
-        100.,
-        size.width() as f32,
-        (size.height() as f32 - 300.).max(1.),
-    );
+    viewport.0 = Rect::from_size(size.width() as f32, (size.height() as f32 - 200.).max(1.));
+    // viewport.0 = Rect::new(
+    //     0.,
+    //     100.,
+    //     // 0.,
+    //     size.width() as f32,
+    //     (size.height() as f32 - 300.).max(1.),
+    // );
 
     layout.columns =
         (viewport.0.width as u32 / (layout.tile_size.x + layout.tile_spacing.x) as u32).max(1);
@@ -99,6 +100,18 @@ pub(crate) fn sys_resize_layout(
     image_dirtier.mark_all_dirty();
 
     let row_width = layout.columns as f32 * (layout.tile_size.x + layout.tile_spacing.x);
+
+    let half_width = size.width() as f32 / 2.;
+    let half_height = size.height() as f32 / 2.;
+
+    camera.raw.left = -half_width;
+    camera.raw.right = half_width;
+    // camera.raw.top = 0.;
+    // camera.raw.bottom = -(size.height() as f32);
+    // camera.raw.top = half_height;
+    // camera.raw.bottom = -half_height + 300.;
+    camera.raw.top = half_height;
+    camera.raw.bottom = -half_height;
 
     camera.raw.translation.x = row_width / 2.;
 }

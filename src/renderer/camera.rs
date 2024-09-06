@@ -93,18 +93,6 @@ pub(crate) fn sys_setup_camera(
     all_storages.insert(camera);
 }
 
-pub(crate) fn sys_resize_camera(mut camera: ResMut<MainCamera>, size: Res<WindowSize>) {
-    let half_width = size.width() as f32 / 2.;
-    let half_height = size.height() as f32 / 2.;
-
-    camera.raw.left = -half_width;
-    camera.raw.right = half_width;
-    // camera.raw.top = 0.;
-    // camera.raw.bottom = -(size.height() as f32);
-    camera.raw.top = half_height;
-    camera.raw.bottom = -half_height;
-}
-
 pub(crate) fn sys_update_camera(queue: Res<Queue>, camera: ResMut<MainCamera>) {
     if camera.is_modified() {
         camera.update_camera(queue.inner());
