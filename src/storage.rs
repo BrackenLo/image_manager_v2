@@ -8,11 +8,11 @@ use std::{
 
 use ahash::AHashMap;
 use crossbeam_channel::{Receiver, Sender};
-use image::DynamicImage;
+use image::{DynamicImage, GenericImageView};
 use shipyard::{AllStoragesView, IntoWorkload, Unique, Workload, WorkloadModificator};
 
 use crate::{
-    images::{Image, ImageCreator},
+    images::{ImageCreator, ImageMeta, StandardImage},
     layout::LayoutManager,
     renderer::{
         texture::Texture,
@@ -20,6 +20,7 @@ use crate::{
         Device, Queue,
     },
     shipyard_tools::{Plugin, Res, ResMut, Stages},
+    tools::Size,
 };
 
 //====================================================================
@@ -93,6 +94,7 @@ pub struct Storage {
 pub struct TextureData {
     texture: Texture,
     path: PathBuf,
+    resolution: Size<u32>,
 }
 
 //====================================================================
@@ -243,7 +245,16 @@ fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: R
             path.hash(&mut hasher);
             let key = hasher.finish();
 
-            storage.textures.insert(key, TextureData { texture, path });
+            let resolution = image.dimensions().into();
+
+            storage.textures.insert(
+                key,
+                TextureData {
+                    texture,
+                    path,
+                    resolution,
+                },
+            );
 
             key
         })
@@ -264,7 +275,7 @@ fn sys_spawn_new_images(
     storage.to_spawn.iter().for_each(|id| {
         let texture = storage.textures.get(id).unwrap();
 
-        let image = Image {
+        let image = StandardImage {
             id: *id,
             instance: TextureInstance::new(
                 device.inner(),
@@ -280,7 +291,13 @@ fn sys_spawn_new_images(
 
         let index = layout.next();
 
-        image_creator.spawn(image, index);
+        let meta = ImageMeta {
+            texture_resolution: texture.resolution,
+            // aspect: texture.resolution.width as f32 / texture.resolution.height as f32,
+            aspect: texture.resolution.height as f32 / texture.resolution.width as f32,
+        };
+
+        image_creator.spawn(image, meta, index);
     });
 
     storage.to_spawn.clear();

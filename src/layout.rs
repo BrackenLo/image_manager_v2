@@ -7,7 +7,10 @@ use shipyard::{
 use winit::keyboard::KeyCode;
 
 use crate::{
-    images::{Color, Image, ImageDirtier, ImageDirty, ImageIndex, ImageSelected, ImageSize, Pos},
+    images::{
+        Color, ImageDirtier, ImageDirty, ImageIndex, ImageMeta, ImageSelected, ImageSize, Pos,
+        StandardImage,
+    },
     renderer::{camera::MainCamera, texture_pipeline::RawTextureInstance, Queue},
     shipyard_tools::{Plugin, Res, ResMut, Stages, UniqueTools},
     tools::{aabb_point, Input, MouseInput, Rect, Time},
@@ -94,8 +97,9 @@ impl ImageViewport {
 
 #[derive(Unique)]
 pub struct LayoutNavigation {
-    scroll_speed: f32,
     scroll_mod: f32,
+    move_speed: f32,
+    move_mod: f32,
     zoom_speed: f32,
     zoom_mod: f32,
 }
@@ -103,8 +107,9 @@ pub struct LayoutNavigation {
 impl Default for LayoutNavigation {
     fn default() -> Self {
         Self {
-            scroll_speed: 800.,
-            scroll_mod: 3.,
+            scroll_mod: 4.,
+            move_speed: 800.,
+            move_mod: 3.,
             zoom_speed: 120.,
             zoom_mod: 2.1,
         }
@@ -128,14 +133,7 @@ fn sys_resize_layout(
 
     mut camera: ResMut<MainCamera>,
 ) {
-    viewport.0 = Rect::from_size(size.width() as f32, (size.height() as f32 - 200.).max(1.));
-    // viewport.0 = Rect::new(
-    //     0.,
-    //     100.,
-    //     // 0.,
-    //     size.width() as f32,
-    //     (size.height() as f32 - 300.).max(1.),
-    // );
+    viewport.0 = Rect::from_size(size.width_f32(), (size.height_f32() - 200.).max(1.));
 
     layout.columns =
         (viewport.0.width as u32 / (layout.tile_size.x + layout.tile_spacing.x) as u32).max(1);
@@ -144,15 +142,13 @@ fn sys_resize_layout(
 
     let row_width = layout.columns as f32 * (layout.tile_size.x + layout.tile_spacing.x);
 
-    let half_width = size.width() as f32 / 2.;
-    let half_height = size.height() as f32 / 2.;
+    let half_width = size.width_f32() / 2.;
+    let half_height = size.height_f32() / 2.;
 
     camera.raw.left = -half_width;
     camera.raw.right = half_width;
-    // camera.raw.top = 0.;
-    // camera.raw.bottom = -(size.height() as f32);
-    // camera.raw.top = half_height;
-    // camera.raw.bottom = -half_height + 300.;
+    camera.raw.top = 0.;
+    camera.raw.bottom = -size.height_f32();
     camera.raw.top = half_height;
     camera.raw.bottom = -half_height;
 
@@ -161,10 +157,12 @@ fn sys_resize_layout(
 
 fn sys_order_images(
     layout: Res<LayoutManager>,
+    size: Res<WindowSize>,
 
     mut vm_pos: ViewMut<Pos>,
     mut vm_size: ViewMut<ImageSize>,
     v_index: View<ImageIndex>,
+    v_meta: View<ImageMeta>,
     v_dirty: View<ImageDirty>,
 ) {
     if v_dirty.is_empty() {
@@ -172,11 +170,11 @@ fn sys_order_images(
     }
 
     let start_x = (layout.tile_size.x + layout.tile_spacing.x) / 2.;
-    let start_y = -layout.tile_size.y / 2.;
+    let start_y = size.height_f32() / 2. - layout.tile_size.y / 2.;
 
-    (&mut vm_pos, &mut vm_size, &v_index, &v_dirty)
+    (&mut vm_pos, &mut vm_size, &v_index, &v_meta, &v_dirty)
         .iter()
-        .for_each(|(pos, size, index, _)| {
+        .for_each(|(pos, size, index, meta, _)| {
             let x = start_x
                 + (index.index % layout.columns) as f32
                     * (layout.tile_size.x + layout.tile_spacing.x);
@@ -188,10 +186,19 @@ fn sys_order_images(
             pos.x = x;
             pos.y = y;
 
-            size.width = layout.tile_size.x;
-            size.height = layout.tile_size.y;
+            match meta.aspect < 1. {
+                true => {
+                    size.width = layout.tile_size.x;
+                    size.height = layout.tile_size.y * meta.aspect;
+                }
+                false => {
+                    size.width = layout.tile_size.x / meta.aspect;
+                    size.height = layout.tile_size.y;
+                }
+            }
 
-            // println!("Position at {}, {}", pos.x, pos.y);
+            // size.width = layout.tile_size.x;
+            // size.height = layout.tile_size.y;
         });
 }
 
@@ -201,7 +208,7 @@ fn sys_rebuild_images(
     v_pos: View<Pos>,
     v_size: View<ImageSize>,
     v_color: View<Color>,
-    v_image: View<Image>,
+    v_image: View<StandardImage>,
     v_dirty: View<ImageDirty>,
 ) {
     if v_dirty.is_empty() {
@@ -236,15 +243,6 @@ fn sys_navigate_layout(
 
     mut image_dirtier: ImageDirtier,
 ) {
-    // DEBUG
-    // let a = keys.pressed(KeyCode::KeyA);
-    // let d = keys.pressed(KeyCode::KeyD);
-    // let x = (a as i8 - d as i8) as f32;
-
-    // if x != 0. {
-    //     camera.raw.translation.x += x * 600. * time.delta_seconds();
-    // }
-
     // Mods
     let shift = keys.pressed(KeyCode::ShiftLeft);
     let ctrl = keys.pressed(KeyCode::ControlLeft);
@@ -254,7 +252,7 @@ fn sys_navigate_layout(
     let s = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::KeyJ);
     let mut y = (w as i8 - s as i8) as f32;
     if !ctrl {
-        y += mouse.scroll().y * 1.4;
+        y += mouse.scroll().y * navigation.scroll_mod;
     }
 
     // Zooming in and out
@@ -263,7 +261,7 @@ fn sys_navigate_layout(
 
     let mut zoom = (r as i8 - f as i8) as f32;
     if ctrl {
-        zoom += mouse.scroll().y * 2.;
+        zoom += mouse.scroll().y * navigation.scroll_mod;
     }
 
     if zoom != 0. {
@@ -286,16 +284,14 @@ fn sys_navigate_layout(
 
         let row_width = layout.columns as f32 * (layout.tile_size.x + layout.tile_spacing.x);
         camera.raw.translation.x = row_width / 2.;
-
-        // log::debug!("new tile size '{}'", layout.format.tile_max_size);
     }
 
     if y != 0. {
         let delta = time.delta_seconds();
 
-        let mut speed = navigation.scroll_speed;
+        let mut speed = navigation.move_speed;
         if shift {
-            speed *= navigation.scroll_mod;
+            speed *= navigation.move_mod;
         }
 
         camera.raw.translation.y += y * delta * speed;
@@ -333,12 +329,7 @@ fn sys_select_images(
         .iter()
         .with_id()
         .filter_map(|(id, (pos, _))| {
-            match aabb_point(
-                // mouse.screen_pos(),
-                mouse_pos,
-                glam::vec2(pos.x, pos.y),
-                layout.tile_size,
-            ) {
+            match aabb_point(mouse_pos, glam::vec2(pos.x, pos.y), layout.tile_size) {
                 true => None,
                 false => Some(id),
             }
@@ -356,21 +347,12 @@ fn sys_select_images(
     let image = (&v_pos, &v_index, !&vm_selected)
         .iter()
         .with_id()
-        .find(|(_, (pos, _, _))| {
-            aabb_point(
-                // mouse.screen_pos(),
-                mouse_pos,
-                glam::vec2(pos.x, pos.y),
-                layout.tile_size,
-            )
-        });
+        .find(|(_, (pos, _, _))| aabb_point(mouse_pos, glam::vec2(pos.x, pos.y), layout.tile_size));
 
     let id = match image {
         Some((id, _)) => id,
         None => return,
     };
-
-    // println!("Found at {:?}", v_pos.get(id).unwrap().to_array());
 
     let mut color = (&mut vm_color).get(id).unwrap();
     color.r = 0.;

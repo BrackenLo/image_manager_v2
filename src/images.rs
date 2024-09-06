@@ -8,6 +8,7 @@ use shipyard::{
 use crate::{
     renderer::texture_pipeline::TextureInstance,
     shipyard_tools::{Plugin, Stages},
+    tools::Size,
 };
 
 //====================================================================
@@ -72,6 +73,12 @@ impl Default for ImageSize {
     }
 }
 
+#[derive(Component)]
+pub struct ImageMeta {
+    pub texture_resolution: Size<u32>,
+    pub aspect: f32,
+}
+
 //--------------------------------------------------
 
 #[derive(Component)]
@@ -107,7 +114,7 @@ impl Default for Color {
 //--------------------------------------------------
 
 #[derive(Component)]
-pub struct Image {
+pub struct StandardImage {
     pub id: u64,
     pub instance: TextureInstance,
 }
@@ -142,7 +149,7 @@ pub struct ImageDirtier<'v> {
 
 impl ImageDirtier<'_> {
     #[inline]
-    pub fn mark_dirty(&mut self, id: EntityId) {
+    pub fn _mark_dirty(&mut self, id: EntityId) {
         self.entities.add_component(id, &mut self.dirty, ImageDirty);
     }
 
@@ -161,32 +168,20 @@ pub struct ImageCreator<'v> {
     pos: ViewMut<'v, Pos>,
     size: ViewMut<'v, ImageSize>,
     color: ViewMut<'v, Color>,
-    image: ViewMut<'v, Image>,
+    image: ViewMut<'v, StandardImage>,
     index: ViewMut<'v, ImageIndex>,
+    meta: ViewMut<'v, ImageMeta>,
     dirty: ViewMut<'v, ImageDirty>,
-
-    remove: ViewMut<'v, ToRemove>,
 }
 
 impl ImageCreator<'_> {
-    #[inline]
-    pub fn _remove(&mut self, id: EntityId) {
-        self.entities.add_component(id, &mut self.remove, ToRemove);
-    }
-
-    pub fn _remove_all(&mut self) {
-        (&self.pos, &self.size, &self.color, &self.image)
-            .iter()
-            .with_id()
-            .for_each(|(id, _)| self.entities.add_component(id, &mut self.remove, ToRemove));
-    }
-
-    pub fn spawn(&mut self, image: Image, index: u32) -> EntityId {
+    pub fn spawn(&mut self, image: StandardImage, meta: ImageMeta, index: u32) -> EntityId {
         self.spawn_config(
             Pos::default(),
             ImageSize::default(),
             Color::default(),
             image,
+            meta,
             index,
         )
     }
@@ -196,7 +191,8 @@ impl ImageCreator<'_> {
         pos: Pos,
         size: ImageSize,
         color: Color,
-        image: Image,
+        image: StandardImage,
+        meta: ImageMeta,
         index: u32,
     ) -> EntityId {
         self.entities.add_entity(
@@ -205,10 +201,19 @@ impl ImageCreator<'_> {
                 &mut self.size,
                 &mut self.color,
                 &mut self.image,
+                &mut self.meta,
                 &mut self.index,
                 &mut self.dirty,
             ),
-            (pos, size, color, image, ImageIndex { index }, ImageDirty),
+            (
+                pos,
+                size,
+                color,
+                image,
+                meta,
+                ImageIndex { index },
+                ImageDirty,
+            ),
         )
     }
 }

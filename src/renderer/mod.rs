@@ -12,7 +12,7 @@ use texture::{sys_resize_depth_texture, sys_setup_depth_texture, DepthTexture};
 use texture_pipeline::TexturePipeline;
 
 use crate::{
-    images::Image,
+    images::StandardImage,
     shipyard_tools::{Plugin, Res, ResMut, Stages, UniqueTools},
     tools::Size,
     window::WindowSize,
@@ -237,7 +237,7 @@ fn sys_render(
     circle_pipeline: Res<CirclePipeline>,
 
     camera: Res<MainCamera>,
-    v_images: View<Image>,
+    v_images: View<StandardImage>,
 ) {
     {
         let desc = RenderPassToolsDesc {

@@ -9,6 +9,7 @@ pub type ResMut<'a, T> = shipyard::UniqueViewMut<'a, T>;
 
 //====================================================================
 
+#[allow(dead_code)]
 pub trait WorldTools {
     fn and_run<B, S: shipyard::System<(), B>>(&self, system: S) -> &Self;
     fn and_run_with_data<Data, B, S: shipyard::System<(Data,), B>>(
@@ -36,6 +37,7 @@ impl WorldTools for shipyard::World {
     }
 }
 
+#[allow(dead_code)]
 pub trait UniqueTools {
     fn insert<U: shipyard::Unique + Send + Sync>(&self, unique: U) -> &Self;
     fn replace<U: shipyard::Unique + Send + Sync>(&self, unique: U);

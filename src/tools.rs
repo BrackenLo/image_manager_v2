@@ -55,12 +55,14 @@ pub struct Size<T> {
 }
 
 impl<T> Size<T> {
+    #[inline]
     pub fn new(width: T, height: T) -> Self {
         Self { width, height }
     }
 }
 
 impl<T> From<winit::dpi::PhysicalSize<T>> for Size<T> {
+    #[inline]
     fn from(value: winit::dpi::PhysicalSize<T>) -> Self {
         Self {
             width: value.width,
@@ -69,7 +71,18 @@ impl<T> From<winit::dpi::PhysicalSize<T>> for Size<T> {
     }
 }
 
+impl<T> From<(T, T)> for Size<T> {
+    #[inline]
+    fn from(value: (T, T)) -> Self {
+        Self {
+            width: value.0,
+            height: value.1,
+        }
+    }
+}
+
 impl<T: Display> Display for Size<T> {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}, {})", self.width, self.height)
     }
@@ -281,7 +294,7 @@ pub(super) fn sys_process_mouse_pos(
     size: Res<WindowSize>,
 ) {
     mouse.pos = pos.into();
-    mouse.screen_pos = glam::vec2(mouse.pos.x, size.height() as f32 - mouse.pos.y as f32);
+    mouse.screen_pos = glam::vec2(mouse.pos.x, size.height_f32() - mouse.pos.y as f32);
 }
 
 fn sys_reset_mouse_input(mut mouse: ResMut<MouseInput>) {

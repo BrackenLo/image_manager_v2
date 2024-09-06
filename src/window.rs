@@ -28,6 +28,16 @@ impl WindowSize {
     pub fn height(&self) -> u32 {
         self.0.height
     }
+
+    #[inline]
+    pub fn width_f32(&self) -> f32 {
+        self.0.width as f32
+    }
+
+    #[inline]
+    pub fn height_f32(&self) -> f32 {
+        self.0.height as f32
+    }
 }
 
 #[derive(Unique)]
