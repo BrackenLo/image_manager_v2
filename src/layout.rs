@@ -3,7 +3,7 @@
 use glyphon::Metrics;
 use shipyard::{
     AllStoragesView, EntitiesView, EntityId, Get, IntoIter, IntoWithId, IntoWorkload, Remove,
-    Unique, View, ViewMut, Workload,
+    Unique, View, ViewMut,
 };
 use winit::{event::MouseButton, keyboard::KeyCode};
 
@@ -32,41 +32,32 @@ pub(crate) struct LayoutPlugin;
 impl Plugin<Stages> for LayoutPlugin {
     fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
         workload_builder
-            .add_workload(
-                Stages::Setup,
-                Workload::new("").with_system(sys_setup_layout),
-            )
+            .add_workload(Stages::Setup, (sys_setup_layout).into_workload())
             .add_workload(
                 Stages::Update,
-                Workload::new("")
-                    .with_system(sys_navigate_layout)
-                    .with_system(sys_hover_images)
-                    .into_sequential_workload()
-                    .with_system(sys_select_images),
+                (
+                    (sys_navigate_layout, sys_hover_images).into_sequential_workload(),
+                    sys_select_images,
+                )
+                    .into_workload(),
             )
             .add_workload(
                 Stages::PreRender,
-                Workload::new("")
-                    .with_system(sys_order_images)
-                    .with_system(sys_rebuild_images)
-                    .into_sequential_workload()
-                    .with_system(sys_position_text),
+                (sys_order_images, sys_rebuild_images).into_sequential_workload(),
             )
             //
             .add_event::<ResizeEvent>(
-                Workload::new("")
-                    .with_system(sys_resize_layout)
-                    .with_system(sys_resize_selected),
+                (sys_resize_layout, sys_resize_selected, sys_reposition_text)
+                    .into_sequential_workload(),
             )
             .add_event::<SelectedEvent>(
-                Workload::new("")
-                    .with_workload(
-                        (sys_set_layout_selected, sys_resize_layout).into_sequential_workload(),
-                    )
-                    .with_workload(
-                        (sys_process_selected, sys_resize_selected).into_sequential_workload(),
-                    ),
-            );
+                (
+                    (sys_set_layout_selected, sys_resize_layout).into_sequential_workload(),
+                    (sys_process_selected, sys_resize_selected).into_sequential_workload(),
+                )
+                    .into_workload(),
+            )
+            .add_event::<ScrollEvent>((sys_reposition_text).into_workload());
     }
 }
 
@@ -139,6 +130,9 @@ impl Default for LayoutNavigation {
 struct SelectedEvent {
     selected: Option<EntityId>,
 }
+
+#[derive(Event)]
+struct ScrollEvent;
 
 //====================================================================
 
@@ -256,7 +250,7 @@ fn sys_rebuild_images(
         });
 }
 
-fn sys_position_text(
+fn sys_reposition_text(
     layout: Res<LayoutManager>,
     size: Res<WindowSize>,
     camera: Res<Camera<MainCamera>>,
@@ -266,10 +260,6 @@ fn sys_position_text(
     v_index: View<ImageIndex>,
     mut vm_text: ViewMut<TextBuffer>,
 ) {
-    // let left = (camera.raw.left - camera.raw.translation.x) as i32;
-    // let right = (camera.raw.right - camera.raw.translation.x) as i32;
-    // let top = (camera.raw.top + camera.raw.translation.y) as i32;
-    // let bottom = (camera.raw.bottom + camera.raw.translation.y) as i32;
     let top = 0;
     let bottom = size.height() as i32;
     let left = 0;
@@ -286,15 +276,6 @@ fn sys_position_text(
             text.pos.0 = start_x + pos.x;
             text.pos.1 = start_y - pos.y;
 
-            // text.pos.0 = camera.raw.translation.x + pos.x + size.width_f32() / 2.;
-            // text.pos.0 = pos.x ;
-
-            // text.pos.1 = camera.raw.translation.y - pos.y;
-
-            // text.bounds.top = 0;
-            // text.bounds.bottom = size.height() as i32 - 0;
-            // text.bounds.left = 0;
-            // text.bounds.right = size.width() as i32 - 0;
             text.bounds.top = top;
             text.bounds.bottom = bottom;
             text.bounds.left = left;
@@ -311,7 +292,23 @@ fn sys_position_text(
 
 //====================================================================
 
+// TODO / OPTIMIZE - Only render text and images that are visible
+// fn sys_set_visiblity(
+//     layout: Res<LayoutManager>,
+//     camera: Res<Camera<MainCamera>>,
+//     v_index: View<ImageIndex>,
+//     vm_visible: ViewMut<ImageVisible>,
+// ) {
+//     let top = camera.raw.translation.y + camera.raw.top;
+//     let bottom = camera.raw.translation.y + camera.raw.bottom;
+
+// }
+
+//====================================================================
+
 fn sys_navigate_layout(
+    mut events: ResMut<EventHandler>,
+
     mut layout: ResMut<LayoutManager>,
     navigation: Res<LayoutNavigation>,
     mut camera: ResMut<Camera<MainCamera>>,
@@ -386,6 +383,8 @@ fn sys_navigate_layout(
         let max_y = layout.tile_size.y * 0.8;
 
         camera.raw.translation.y = camera.raw.translation.y.clamp(min_y, max_y);
+
+        events.add_event(ScrollEvent);
     }
 }
 
@@ -523,7 +522,7 @@ fn sys_process_selected(
     };
 
     let meta = ImageMeta {
-        texture_resolution: texture.resolution,
+        _texture_resolution: texture.resolution,
         aspect: texture.resolution.height as f32 / texture.resolution.width as f32,
     };
 

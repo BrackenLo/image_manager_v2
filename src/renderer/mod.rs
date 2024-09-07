@@ -5,7 +5,7 @@ use camera::{
 };
 use circle_pipeline::{sys_update_circle_pipeline, CirclePipeline};
 use pollster::FutureExt;
-use shipyard::{AllStoragesView, IntoIter, IntoWorkload, Unique, View, Workload};
+use shipyard::{AllStoragesView, IntoIter, IntoWorkload, Unique, View};
 use text_pipeline::{
     sys_prep_text, sys_resize_text_pipeline, sys_setup_text_pipeline, sys_trim_text_pipeline,
     TextPipeline,
@@ -37,38 +37,38 @@ impl Plugin<Stages> for RendererPlugin {
         workload_builder
             .add_workload(
                 Stages::PreSetup,
-                Workload::new("")
-                    .with_system(sys_setup_renderer_components)
-                    .with_system(sys_setup_camera)
-                    .into_sequential_workload(),
+                (sys_setup_renderer_components, sys_setup_camera).into_sequential_workload(),
             )
             .add_workload(
                 Stages::Setup,
-                Workload::new("")
-                    .with_system(sys_setup_misc)
-                    .with_system(sys_setup_depth_texture)
-                    .with_system(sys_setup_pipelines)
-                    .with_system(sys_setup_text_pipeline),
+                (
+                    sys_setup_misc,
+                    sys_setup_depth_texture,
+                    sys_setup_pipelines,
+                    sys_setup_text_pipeline,
+                )
+                    .into_workload(),
             )
             .add_workload(
-                Stages::PreRender,
-                Workload::new("")
-                    .with_system(sys_update_camera::<MainCamera>)
-                    .with_system(sys_update_camera::<UiCamera>)
-                    .with_system(sys_prep_text)
-                    .with_system(sys_update_circle_pipeline),
+                Stages::PostUpdate,
+                (
+                    sys_update_camera::<MainCamera>,
+                    sys_update_camera::<UiCamera>,
+                    sys_prep_text,
+                    sys_update_circle_pipeline,
+                )
+                    .into_workload(),
             )
-            .add_workload(Stages::Render, Workload::new("").with_system(sys_render))
-            .add_workload(
-                Stages::PostRender,
-                Workload::new("").with_system(sys_trim_text_pipeline),
-            )
+            .add_workload(Stages::Render, (sys_render).into_workload())
+            .add_workload(Stages::PostRender, (sys_trim_text_pipeline).into_workload())
             .add_event::<ResizeEvent>(
-                Workload::new("")
-                    .with_system(sys_resize)
-                    .with_system(sys_resize_depth_texture)
-                    .with_system(sys_resize_text_pipeline)
-                    .with_system(sys_resize_camera::<UiCamera>),
+                (
+                    sys_resize,
+                    sys_resize_depth_texture,
+                    sys_resize_text_pipeline,
+                    sys_resize_camera::<UiCamera>,
+                )
+                    .into_workload(),
             );
     }
 }

@@ -88,7 +88,6 @@ impl App {
         }
 
         self.world.run_with_data(window::sys_resize, new_size);
-        // self.world.run_workload(Stages::Resize).unwrap();
     }
 
     //--------------------------------------------------

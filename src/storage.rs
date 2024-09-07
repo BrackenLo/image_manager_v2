@@ -9,7 +9,7 @@ use std::{
 use ahash::AHashMap;
 use crossbeam_channel::{Receiver, Sender};
 use image::{DynamicImage, GenericImageView};
-use shipyard::{AllStoragesView, SystemModificator, Unique, ViewMut, Workload};
+use shipyard::{AllStoragesView, IntoWorkload, SystemModificator, Unique, ViewMut, Workload};
 
 use crate::{
     app::Stages,
@@ -32,15 +32,14 @@ pub(crate) struct StoragePlugin;
 impl Plugin<Stages> for StoragePlugin {
     fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
         workload_builder
-            .add_workload(
-                Stages::PreSetup,
-                Workload::new("").with_system(sys_setup_storage),
-            )
+            .add_workload(Stages::PreSetup, (sys_setup_storage).into_workload())
             .add_workload(
                 Stages::PreUpdate,
-                Workload::new("")
-                    .with_system(sys_process_new_images.run_if(sys_check_loading))
-                    .with_system(sys_spawn_new_images.run_if(sys_check_pending)),
+                (
+                    sys_process_new_images.run_if(sys_check_loading),
+                    sys_spawn_new_images.run_if(sys_check_pending),
+                )
+                    .into_workload(),
             )
             .add_event::<LoadFolderEvent>(Workload::new("").with_system(sys_load_path));
     }
@@ -290,7 +289,7 @@ fn sys_spawn_new_images(
         let index = layout.next();
 
         let meta = ImageMeta {
-            texture_resolution: texture.resolution,
+            _texture_resolution: texture.resolution,
             aspect: texture.resolution.height as f32 / texture.resolution.width as f32,
         };
 

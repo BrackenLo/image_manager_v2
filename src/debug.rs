@@ -1,6 +1,6 @@
 //====================================================================
 
-use shipyard::{AllStoragesView, EntitiesViewMut, EntityId, Get, Unique, ViewMut, Workload};
+use shipyard::{AllStoragesView, EntitiesViewMut, EntityId, Get, IntoWorkload, Unique, ViewMut};
 
 use crate::{
     app::Stages,
@@ -23,19 +23,15 @@ impl Plugin<Stages> for DebugPlugin {
         workload_builder
             .add_workload(
                 Stages::Setup,
-                Workload::new("")
-                    .with_system(sys_setup_debug)
-                    .with_system(sys_setup_mouse_tracker),
+                (sys_setup_debug, sys_setup_mouse_tracker).into_workload(),
             )
             .add_workload(
                 Stages::PostSetup,
-                Workload::new("").with_system(sys_display_memory_usage),
+                (sys_display_memory_usage).into_workload(),
             )
             .add_workload(
                 Stages::PreUpdate,
-                Workload::new("")
-                    .with_system(sys_tick_upkeep)
-                    .with_system(sys_update_mouse_tracker),
+                (sys_tick_upkeep, sys_update_mouse_tracker).into_workload(),
             );
     }
 }

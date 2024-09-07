@@ -214,7 +214,7 @@ impl TextBuffer {
     }
 
     #[inline]
-    pub fn set_size(
+    pub fn _set_size(
         &mut self,
         text_pipeline: &mut TextPipeline,
         width: Option<f32>,

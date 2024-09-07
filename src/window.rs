@@ -11,7 +11,7 @@ use crate::{
 
 //====================================================================
 
-#[derive(Unique)]
+#[derive(Unique, Debug)]
 pub struct WindowSize(Size<u32>);
 impl WindowSize {
     #[inline]

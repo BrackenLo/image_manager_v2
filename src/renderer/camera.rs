@@ -211,7 +211,7 @@ impl OrthographicCamera {
         }
     }
 
-    pub fn new_centered(half_width: f32, half_height: f32) -> Self {
+    pub fn _new_centered(half_width: f32, half_height: f32) -> Self {
         Self {
             left: -half_width,
             right: half_width,

@@ -46,7 +46,7 @@ pub const INDICES: [u16; 6] = [0, 1, 3, 0, 3, 2];
 
 #[repr(C)]
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Clone, Copy)]
-pub struct RawInstance {
+pub struct RawCircleInstance {
     pub pos: [f32; 2],
     pub radius: f32,
     pub border_radius: f32,
@@ -55,21 +55,21 @@ pub struct RawInstance {
     // hollow: bool, // TODO
 }
 
-impl Vertex for RawInstance {
+impl Vertex for RawCircleInstance {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
             1 => Float32x2, 2 => Float32, 3 => Float32, 4 => Float32x4, 5 => Float32x4,
         ];
 
         wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<RawInstance>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<RawCircleInstance>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &VERTEX_ATTRIBUTES,
         }
     }
 }
 
-impl RawInstance {
+impl RawCircleInstance {
     pub fn new(pos: [f32; 2], radius: f32) -> Self {
         Self {
             pos,
@@ -79,7 +79,7 @@ impl RawInstance {
             border_color: [0., 0., 0., 1.],
         }
     }
-    pub fn with_color(mut self, color: [f32; 4]) -> Self {
+    pub fn _with_color(mut self, color: [f32; 4]) -> Self {
         self.color = color;
         self
     }
@@ -87,7 +87,7 @@ impl RawInstance {
         self.color = [0., 0., 0., 0.];
         self
     }
-    pub fn with_border(mut self, radius: f32, color: [f32; 4]) -> Self {
+    pub fn _with_border(mut self, radius: f32, color: [f32; 4]) -> Self {
         self.border_radius = radius;
         self.border_color = color;
         self
@@ -119,7 +119,7 @@ impl CirclePipeline {
             config,
             "Circle Pipeline",
             &[&camera_bind_group_layout],
-            &[RawVertex::desc(), RawInstance::desc()],
+            &[RawVertex::desc(), RawCircleInstance::desc()],
             include_str!("circle_shader.wgsl").into(),
             // tools::RenderPipelineDescriptor {
             //     fragment_targets: Some(&[Some(wgpu::ColorTargetState {
@@ -174,7 +174,12 @@ impl CirclePipeline {
         pass.draw_indexed(0..self.index_count, 0, 0..self.instance_count);
     }
 
-    fn update(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, instances: &[RawInstance]) {
+    fn update(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        instances: &[RawCircleInstance],
+    ) {
         tools::update_instance_buffer(
             device,
             queue,
@@ -203,7 +208,7 @@ pub(super) fn sys_update_circle_pipeline(
 ) {
     let instances = (&v_circle, &v_pos)
         .iter()
-        .map(|(circle, pos)| RawInstance::new([pos.x, pos.y], circle.radius).hollow())
+        .map(|(circle, pos)| RawCircleInstance::new([pos.x, pos.y], circle.radius).hollow())
         .collect::<Vec<_>>();
 
     pipeline.update(device.inner(), queue.inner(), &instances);

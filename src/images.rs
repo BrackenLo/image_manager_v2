@@ -2,7 +2,7 @@
 
 use shipyard::{
     AllStoragesViewMut, Borrow, BorrowInfo, Component, EntitiesViewMut, EntityId, IntoIter,
-    IntoWithId, View, ViewMut, Workload,
+    IntoWithId, IntoWorkload, View, ViewMut,
 };
 
 use crate::{
@@ -18,9 +18,7 @@ impl Plugin<Stages> for ImagePlugin {
     fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
         workload_builder.add_workload(
             Stages::Last,
-            Workload::new("")
-                .with_system(sys_remove_pending)
-                .with_system(sys_clear_dirty),
+            (sys_remove_pending, sys_clear_dirty).into_workload(),
         );
     }
 }
@@ -74,7 +72,7 @@ impl Default for ImageSize {
 
 #[derive(Component)]
 pub struct ImageMeta {
-    pub texture_resolution: Size<u32>,
+    pub _texture_resolution: Size<u32>,
     pub aspect: f32,
 }
 
@@ -128,6 +126,10 @@ pub struct ImageIndex {
 
 #[derive(Component)]
 pub struct ImageDirty;
+
+// TODO / OPTIMIZE
+// #[derive(Component)]
+// pub struct ImageVisible;
 
 #[derive(Component)]
 pub struct ImageHovered;

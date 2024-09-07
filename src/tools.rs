@@ -7,7 +7,7 @@ use std::{
 };
 
 use ahash::{HashSet, HashSetExt};
-use shipyard::{AllStoragesView, Unique, Workload};
+use shipyard::{AllStoragesView, IntoWorkload, Unique};
 use winit::{event::MouseButton, keyboard::KeyCode};
 
 use crate::{
@@ -23,20 +23,16 @@ pub(crate) struct ToolsPlugin;
 impl Plugin<Stages> for ToolsPlugin {
     fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
         workload_builder
-            .add_workload(
-                Stages::Setup,
-                Workload::new("").with_system(sys_setup_uniques),
-            )
-            .add_workload(
-                Stages::First,
-                Workload::new("").with_system(sys_update_time),
-            )
+            .add_workload(Stages::Setup, (sys_setup_uniques).into_workload())
+            .add_workload(Stages::First, (sys_update_time).into_workload())
             .add_workload(
                 Stages::Last,
-                Workload::new("")
-                    .with_system(sys_reset_input::<KeyCode>)
-                    .with_system(sys_reset_input::<MouseButton>)
-                    .with_system(sys_reset_mouse_input),
+                (
+                    sys_reset_input::<KeyCode>,
+                    sys_reset_input::<MouseButton>,
+                    sys_reset_mouse_input,
+                )
+                    .into_workload(),
             );
     }
 }
@@ -51,7 +47,7 @@ fn sys_setup_uniques(all_storages: AllStoragesView) {
 
 //====================================================================
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Size<T> {
     pub width: T,
     pub height: T,
@@ -113,7 +109,7 @@ impl Rect {
     }
 
     #[inline]
-    pub fn from_size(width: f32, height: f32) -> Self {
+    pub fn _from_size(width: f32, height: f32) -> Self {
         Self {
             x: 0.,
             y: 0.,
@@ -236,7 +232,7 @@ where
     }
 
     #[inline]
-    pub fn released(&self, input: T) -> bool {
+    pub fn _released(&self, input: T) -> bool {
         self.released.contains(&input)
     }
 }
