@@ -8,12 +8,17 @@ use winit::{event::MouseButton, keyboard::KeyCode};
 
 use crate::{
     images::{
-        Color, ImageDirtier, ImageDirty, ImageHovered, ImageIndex, ImageMeta, ImageSize, Pos,
-        StandardImage,
+        Color, ImageCreator, ImageDirtier, ImageDirty, ImageHovered, ImageIndex, ImageMeta,
+        ImageSelected, ImageShown, ImageSize, Pos, StandardImage, ToRemove,
     },
-    renderer::{camera::MainCamera, texture_pipeline::RawTextureInstance, Queue},
+    renderer::{
+        camera::{Camera, MainCamera},
+        texture_pipeline::{RawTextureInstance, TextureInstance, TexturePipeline},
+        Device, Queue,
+    },
     shipyard_tools::{Event, EventHandler, Plugin, Res, ResMut, Stages, UniqueTools},
-    tools::{aabb_point, Input, MouseInput, Rect, Time},
+    storage::Storage,
+    tools::{aabb_point, Input, MouseInput, Time},
     window::{ResizeEvent, WindowSize},
 };
 
@@ -34,8 +39,7 @@ impl Plugin for LayoutPlugin {
                     .with_system(sys_navigate_layout)
                     .with_system(sys_hover_images)
                     .into_sequential_workload()
-                    .with_system(sys_select_images)
-                    .with_system(sys_process_selected),
+                    .with_system(sys_select_images),
             )
             .add_workload(
                 Stages::PreRender,
@@ -44,7 +48,21 @@ impl Plugin for LayoutPlugin {
                     .with_system(sys_rebuild_images)
                     .into_sequential_workload(),
             )
-            .add_event::<ResizeEvent>(Workload::new("").with_system(sys_resize_layout));
+            //
+            .add_event::<ResizeEvent>(
+                Workload::new("")
+                    .with_system(sys_resize_layout)
+                    .with_system(sys_resize_selected),
+            )
+            .add_event::<SelectedEvent>(
+                Workload::new("")
+                    .with_workload(
+                        (sys_set_layout_selected, sys_resize_layout).into_sequential_workload(),
+                    )
+                    .with_workload(
+                        (sys_process_selected, sys_resize_selected).into_sequential_workload(),
+                    ),
+            );
     }
 }
 
@@ -54,6 +72,7 @@ impl Plugin for LayoutPlugin {
 pub struct LayoutManager {
     image_count: u32,
 
+    width: f32,
     columns: u32,
     tile_size: glam::Vec2,
     tile_spacing: glam::Vec2,
@@ -61,13 +80,14 @@ pub struct LayoutManager {
     max_tile_size: glam::Vec2,
     min_tile_size: glam::Vec2,
 
-    selected: Option<EntityId>,
+    selected: bool,
 }
 
 impl Default for LayoutManager {
     fn default() -> Self {
         Self {
             image_count: 0,
+            width: 1.,
             columns: 1,
             tile_size: glam::vec2(200., 200.),
             tile_spacing: glam::vec2(10., 30.),
@@ -75,7 +95,7 @@ impl Default for LayoutManager {
             max_tile_size: glam::vec2(500., 500.),
             min_tile_size: glam::vec2(80., 80.),
 
-            selected: None,
+            selected: false,
         }
     }
 }
@@ -85,16 +105,6 @@ impl LayoutManager {
         let next = self.image_count;
         self.image_count += 1;
         next
-    }
-}
-
-#[derive(Unique, Default)]
-pub struct ImageViewport(Rect);
-
-impl ImageViewport {
-    #[inline]
-    pub fn _inner(&self) -> &Rect {
-        &self.0
     }
 }
 
@@ -131,25 +141,23 @@ struct SelectedEvent {
 fn sys_setup_layout(all_storages: AllStoragesView) {
     all_storages
         .insert(LayoutManager::default())
-        .insert(LayoutNavigation::default())
-        .insert(ImageViewport::default());
+        .insert(LayoutNavigation::default());
 }
 
 fn sys_resize_layout(
     size: Res<WindowSize>,
     mut layout: ResMut<LayoutManager>,
-    mut viewport: ResMut<ImageViewport>,
     mut image_dirtier: ImageDirtier,
 
-    mut camera: ResMut<MainCamera>,
+    mut camera: ResMut<Camera<MainCamera>>,
 ) {
-    viewport.0 = match layout.selected {
-        Some(_) => Rect::from_size(size.width_f32() / 2., (size.height_f32() - 200.).max(1.)),
-        None => Rect::from_size(size.width_f32(), (size.height_f32() - 200.).max(1.)),
+    layout.width = match layout.selected {
+        true => size.width_f32() / 2.,
+        false => size.width_f32(),
     };
 
     layout.columns =
-        (viewport.0.width as u32 / (layout.tile_size.x + layout.tile_spacing.x) as u32).max(1);
+        (layout.width as u32 / (layout.tile_size.x + layout.tile_spacing.x) as u32).max(1);
 
     image_dirtier.mark_all_dirty();
 
@@ -160,8 +168,6 @@ fn sys_resize_layout(
 
     camera.raw.left = -half_width;
     camera.raw.right = half_width;
-    camera.raw.top = 0.;
-    camera.raw.bottom = -size.height_f32();
     camera.raw.top = half_height;
     camera.raw.bottom = -half_height;
 
@@ -184,7 +190,12 @@ fn sys_order_images(
         return;
     }
 
-    let start_x = (layout.tile_size.x + layout.tile_spacing.x) / 2.;
+    let offset_x = match layout.selected {
+        true => -layout.width / 2.,
+        false => 0.,
+    };
+
+    let start_x = (layout.tile_size.x + layout.tile_spacing.x) / 2. + offset_x;
     let start_y = size.height_f32() / 2. - layout.tile_size.y / 2.;
 
     (&mut vm_pos, &mut vm_size, &v_index, &v_meta, &v_dirty)
@@ -220,14 +231,14 @@ fn sys_rebuild_images(
     v_pos: View<Pos>,
     v_size: View<ImageSize>,
     v_color: View<Color>,
-    v_image: View<StandardImage>,
+    v_std_image: View<StandardImage>,
     v_dirty: View<ImageDirty>,
 ) {
     if v_dirty.is_empty() {
         return;
     }
 
-    (&v_pos, &v_size, &v_color, &v_image, &v_dirty)
+    (&v_pos, &v_size, &v_color, &v_std_image, &v_dirty)
         .iter()
         .for_each(|(pos, size, color, image, _)| {
             image.instance.update(
@@ -246,8 +257,7 @@ fn sys_rebuild_images(
 fn sys_navigate_layout(
     mut layout: ResMut<LayoutManager>,
     navigation: Res<LayoutNavigation>,
-    viewport: Res<ImageViewport>,
-    mut camera: ResMut<MainCamera>,
+    mut camera: ResMut<Camera<MainCamera>>,
 
     keys: Res<Input<KeyCode>>,
     mouse: Res<MouseInput>,
@@ -292,7 +302,7 @@ fn sys_navigate_layout(
         image_dirtier.mark_all_dirty();
 
         layout.columns =
-            (viewport.0.width as u32 / (layout.tile_size.x + layout.tile_spacing.x) as u32).max(1);
+            (layout.width as u32 / (layout.tile_size.x + layout.tile_spacing.x) as u32).max(1);
 
         let row_width = layout.columns as f32 * (layout.tile_size.x + layout.tile_spacing.x);
         camera.raw.translation.x = row_width / 2.;
@@ -323,7 +333,7 @@ fn sys_navigate_layout(
 
 fn sys_hover_images(
     layout: Res<LayoutManager>,
-    camera: Res<MainCamera>,
+    camera: Res<Camera<MainCamera>>,
     mouse: Res<MouseInput>,
 
     v_pos: View<Pos>,
@@ -355,7 +365,7 @@ fn sys_hover_images(
         entities.add_component(id, &mut vm_dirty, ImageDirty);
     });
 
-    // Find newly hovered images
+    // Find newly hovered images - use v_index to only select images part of grid
     let image = (&v_pos, &v_index, !&vm_hovered)
         .iter()
         .with_id()
@@ -375,11 +385,26 @@ fn sys_hover_images(
 
 fn sys_select_images(
     mut events: ResMut<EventHandler>,
-    input: Res<Input<MouseButton>>,
+    key_input: Res<Input<KeyCode>>,
+    mouse_input: Res<Input<MouseButton>>,
 
+    entities: EntitiesView,
     v_hovered: View<ImageHovered>,
+    mut vm_selected: ViewMut<ImageSelected>,
 ) {
-    if !input.just_pressed(MouseButton::Left) {
+    match (
+        mouse_input.just_pressed(MouseButton::Left),
+        mouse_input.just_pressed(MouseButton::Right) | key_input.just_pressed(KeyCode::Escape),
+    ) {
+        (false, true) => {
+            events.add_event(SelectedEvent { selected: None });
+            return;
+        }
+        (false, false) => return,
+        _ => {}
+    }
+
+    if !mouse_input.just_pressed(MouseButton::Left) {
         return;
     }
 
@@ -390,26 +415,99 @@ fn sys_select_images(
         None => return,
     };
 
+    log::debug!("New image selected with id '{:?}'", id);
+
+    // TODO - Set color of selected image (or not idk)
+    vm_selected.clear();
+    entities.add_component(id, &mut vm_selected, ImageSelected);
+
     events.add_event(SelectedEvent { selected: Some(id) });
 }
 
 fn sys_process_selected(
     events: Res<EventHandler>,
-    mut layout: ResMut<LayoutManager>,
+    device: Res<Device>,
+    pipeline: Res<TexturePipeline>,
+    storage: Res<Storage>,
 
-    v_image: View<StandardImage>,
+    mut image_creator: ImageCreator,
+    mut vm_shown: ViewMut<ImageShown>,
+
+    mut vm_remove: ViewMut<ToRemove>,
 ) {
-    let event = match events.get_event::<SelectedEvent>() {
-        Some(event) => event,
-        None => return,
-    };
+    let event = events.get_event::<SelectedEvent>().unwrap();
+
+    // Remove all existing shown images
+    vm_shown.iter().with_id().for_each(|(id, _)| {
+        image_creator
+            .entities
+            .add_component(id, &mut vm_remove, ToRemove)
+    });
 
     let id = match event.selected {
         Some(id) => id,
-        None => todo!(),
+        None => return,
     };
 
-    layout.selected = Some(id);
+    let original_image = image_creator.std_image.get(id).unwrap();
+    let texture = storage.get_texture(original_image.id).unwrap();
+
+    let image = StandardImage {
+        id: original_image.id,
+        instance: TextureInstance::new(
+            device.inner(),
+            &pipeline,
+            RawTextureInstance::default(),
+            &texture.texture,
+        ),
+    };
+
+    let meta = ImageMeta {
+        texture_resolution: texture.resolution,
+        aspect: texture.resolution.height as f32 / texture.resolution.width as f32,
+    };
+
+    let entity_id = image_creator.spawn_image(image, meta);
+    image_creator
+        .entities
+        .add_component(entity_id, &mut vm_shown, ImageShown);
+}
+
+fn sys_set_layout_selected(events: Res<EventHandler>, mut layout: ResMut<LayoutManager>) {
+    let event = events.get_event::<SelectedEvent>().unwrap();
+
+    match event.selected {
+        Some(_) => layout.selected = true,
+        None => layout.selected = false,
+    }
+}
+
+fn sys_resize_selected(
+    window_size: Res<WindowSize>,
+    v_shown: View<ImageShown>,
+    mut vm_pos: ViewMut<Pos>,
+    mut vm_size: ViewMut<ImageSize>,
+    v_meta: View<ImageMeta>,
+) {
+    (&v_shown, &mut vm_pos, &mut vm_size, &v_meta)
+        .iter()
+        .for_each(|(_, pos, size, meta)| {
+            let half_width = window_size.width_f32() / 2.;
+
+            pos.x = half_width / 2.;
+            pos.y = 0.;
+
+            match meta.aspect < 1. {
+                true => {
+                    size.width = half_width;
+                    size.height = window_size.height_f32() * meta.aspect;
+                }
+                false => {
+                    size.width = half_width / meta.aspect;
+                    size.height = window_size.height_f32();
+                }
+            }
+        });
 }
 
 //====================================================================

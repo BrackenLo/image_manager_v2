@@ -73,7 +73,7 @@ impl Default for ImageSize {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct ImageMeta {
     pub texture_resolution: Size<u32>,
     pub aspect: f32,
@@ -114,6 +114,9 @@ impl Default for Color {
 //--------------------------------------------------
 
 #[derive(Component)]
+pub struct Image;
+
+#[derive(Component)]
 pub struct StandardImage {
     pub id: u64,
     pub instance: TextureInstance,
@@ -133,6 +136,10 @@ pub struct ImageHovered;
 #[derive(Component)]
 pub struct ImageSelected;
 
+// TODO - Find better name for this (and other above components)
+#[derive(Component)]
+pub struct ImageShown;
+
 //====================================================================
 
 #[derive(Component)]
@@ -143,7 +150,7 @@ pub struct ToRemove;
 #[derive(Borrow, BorrowInfo)]
 pub struct ImageDirtier<'v> {
     entities: EntitiesViewMut<'v>,
-    index: View<'v, ImageIndex>,
+    image: View<'v, Image>,
     dirty: ViewMut<'v, ImageDirty>,
 }
 
@@ -154,7 +161,7 @@ impl ImageDirtier<'_> {
     }
 
     pub fn mark_all_dirty(&mut self) {
-        (&self.index)
+        (&self.image)
             .iter()
             .with_id()
             .for_each(|(id, _)| self.entities.add_component(id, &mut self.dirty, ImageDirty));
@@ -163,57 +170,48 @@ impl ImageDirtier<'_> {
 
 #[derive(Borrow, BorrowInfo)]
 pub struct ImageCreator<'v> {
-    entities: EntitiesViewMut<'v>,
+    pub entities: EntitiesViewMut<'v>,
 
-    pos: ViewMut<'v, Pos>,
-    size: ViewMut<'v, ImageSize>,
-    color: ViewMut<'v, Color>,
-    image: ViewMut<'v, StandardImage>,
-    index: ViewMut<'v, ImageIndex>,
-    meta: ViewMut<'v, ImageMeta>,
-    dirty: ViewMut<'v, ImageDirty>,
+    pub image: ViewMut<'v, Image>,
+    pub pos: ViewMut<'v, Pos>,
+    pub size: ViewMut<'v, ImageSize>,
+    pub color: ViewMut<'v, Color>,
+    pub std_image: ViewMut<'v, StandardImage>,
+    pub meta: ViewMut<'v, ImageMeta>,
+
+    pub dirty: ViewMut<'v, ImageDirty>,
 }
 
 impl ImageCreator<'_> {
-    pub fn spawn(&mut self, image: StandardImage, meta: ImageMeta, index: u32) -> EntityId {
-        self.spawn_config(
+    pub fn spawn_image(&mut self, image: StandardImage, meta: ImageMeta) -> EntityId {
+        self.spawn_image_config(
             Pos::default(),
             ImageSize::default(),
             Color::default(),
             image,
             meta,
-            index,
         )
     }
 
-    pub fn spawn_config(
+    pub fn spawn_image_config(
         &mut self,
         pos: Pos,
         size: ImageSize,
         color: Color,
-        image: StandardImage,
+        std_image: StandardImage,
         meta: ImageMeta,
-        index: u32,
     ) -> EntityId {
         self.entities.add_entity(
             (
+                &mut self.image,
                 &mut self.pos,
                 &mut self.size,
                 &mut self.color,
-                &mut self.image,
+                &mut self.std_image,
                 &mut self.meta,
-                &mut self.index,
                 &mut self.dirty,
             ),
-            (
-                pos,
-                size,
-                color,
-                image,
-                meta,
-                ImageIndex { index },
-                ImageDirty,
-            ),
+            (Image, pos, size, color, std_image, meta, ImageDirty),
         )
     }
 }

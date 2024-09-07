@@ -230,18 +230,37 @@ impl EventHandler {
 
 pub(super) fn activate_events(world: &World) {
     let mut handler = world.borrow::<ResMut<EventHandler>>().unwrap();
-    let handler = handler.deref_mut();
-    std::mem::swap(&mut handler.active, &mut handler.pending);
 
-    handler.pending.clear();
+    match handler.pending.is_empty() {
+        true => {
+            handler.active.clear();
+            return;
+        }
+        false => {
+            let handler = handler.deref_mut();
+            std::mem::swap(&mut handler.active, &mut handler.pending);
+            handler.pending.clear();
+        }
+    }
 
-    handler
+    let keys = handler
         .active
         .keys()
-        .for_each(|key| match handler.event_subscribers.contains(key) {
-            true => world.run_workload(*key).unwrap(),
-            _ => {}
-        });
+        .filter_map(|key| match handler.event_subscribers.contains(key) {
+            true => Some(*key),
+            false => None,
+        })
+        .collect::<Vec<_>>();
+
+    std::mem::drop(handler);
+
+    keys.iter()
+        .for_each(|key| world.run_workload(*key).unwrap());
+
+    // TODO - log event names instead of IDs
+    if !keys.is_empty() {
+        log::trace!("Triggering events for {:?}", keys);
+    }
 }
 
 //====================================================================

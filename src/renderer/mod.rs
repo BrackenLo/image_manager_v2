@@ -1,6 +1,8 @@
 //====================================================================
 
-use camera::{sys_setup_camera, sys_update_camera, MainCamera};
+use camera::{
+    sys_resize_camera, sys_setup_camera, sys_update_camera, Camera, MainCamera, UiCamera,
+};
 use circle_pipeline::{sys_update_circle_pipeline, CirclePipeline};
 use pollster::FutureExt;
 use shipyard::{AllStoragesView, IntoIter, IntoWorkload, Unique, View, Workload};
@@ -12,7 +14,7 @@ use texture::{sys_resize_depth_texture, sys_setup_depth_texture, DepthTexture};
 use texture_pipeline::TexturePipeline;
 
 use crate::{
-    images::StandardImage,
+    images::{ImageShown, StandardImage},
     shipyard_tools::{Plugin, Res, ResMut, Stages, UniqueTools},
     tools::Size,
     window::{ResizeEvent, WindowSize},
@@ -50,7 +52,8 @@ impl Plugin for RendererPlugin {
             .add_workload(
                 Stages::PreRender,
                 Workload::new("")
-                    .with_system(sys_update_camera)
+                    .with_system(sys_update_camera::<MainCamera>)
+                    .with_system(sys_update_camera::<UiCamera>)
                     .with_system(sys_prep_text)
                     .with_system(sys_update_circle_pipeline),
             )
@@ -63,7 +66,8 @@ impl Plugin for RendererPlugin {
                 Workload::new("")
                     .with_system(sys_resize)
                     .with_system(sys_resize_depth_texture)
-                    .with_system(sys_resize_text_pipeline),
+                    .with_system(sys_resize_text_pipeline)
+                    .with_system(sys_resize_camera::<UiCamera>),
             );
     }
 }
@@ -212,10 +216,12 @@ fn sys_setup_pipelines(
     all_storages: AllStoragesView,
     device: Res<Device>,
     config: Res<SurfaceConfig>,
-    camera: Res<MainCamera>,
+    camera: Res<Camera<MainCamera>>,
 ) {
-    let texture_pipeline = TexturePipeline::new(device.inner(), config.inner(), &camera);
-    let circle_pipeline = CirclePipeline::new(device.inner(), config.inner(), &camera);
+    let texture_pipeline =
+        TexturePipeline::new(device.inner(), config.inner(), camera.bind_group_layout());
+    let circle_pipeline =
+        CirclePipeline::new(device.inner(), config.inner(), camera.bind_group_layout());
 
     all_storages
         .insert(texture_pipeline)
@@ -235,8 +241,10 @@ fn sys_render(
     texture_pipeline: Res<TexturePipeline>,
     circle_pipeline: Res<CirclePipeline>,
 
-    camera: Res<MainCamera>,
+    main_camera: Res<Camera<MainCamera>>,
+    ui_camera: Res<Camera<UiCamera>>,
     v_images: View<StandardImage>,
+    v_shown: View<ImageShown>,
 ) {
     {
         let desc = RenderPassToolsDesc {
@@ -246,15 +254,33 @@ fn sys_render(
 
         let mut pass = tools.render_pass_desc(desc);
 
-        let images = v_images.iter().map(|image| &image.instance);
+        let images = (&v_images, !&v_shown)
+            .iter()
+            .map(|(image, _)| &image.instance);
+
         texture_pipeline.render(
             &mut pass,
-            &camera,
+            &main_camera.bind_group(),
             images.into_iter(),
             // Some(viewport.inner()), // BUG - fix viewport not working with world space
             None,
         );
-        circle_pipeline.render(&mut pass, &camera);
+
+        if !v_shown.is_empty() {
+            let images = (&v_images, &v_shown)
+                .iter()
+                .map(|(image, _)| &image.instance);
+
+            texture_pipeline.render(
+                &mut pass,
+                &ui_camera.bind_group(),
+                images.into_iter(),
+                // Some(viewport.inner()), // BUG - fix viewport not working with world space
+                None,
+            );
+        }
+
+        circle_pipeline.render(&mut pass, &main_camera.bind_group());
     }
 
     {

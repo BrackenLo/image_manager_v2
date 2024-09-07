@@ -5,7 +5,7 @@ use shipyard::{AllStoragesView, EntitiesViewMut, EntityId, Get, Unique, ViewMut,
 use crate::{
     images::Pos,
     renderer::{
-        camera::MainCamera,
+        camera::{Camera, MainCamera},
         circle_pipeline::Circle,
         text::{TextBuffer, TextBufferDescriptor, TextPipeline},
     },
@@ -134,7 +134,7 @@ fn sys_setup_mouse_tracker(
 
 fn sys_update_mouse_tracker(
     tracker: ResMut<MouseTracker>,
-    camera: Res<MainCamera>,
+    camera: Res<Camera<MainCamera>>,
     mouse: Res<MouseInput>,
 
     mut text_pipeline: ResMut<TextPipeline>,

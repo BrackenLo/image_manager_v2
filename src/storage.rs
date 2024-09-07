@@ -9,10 +9,10 @@ use std::{
 use ahash::AHashMap;
 use crossbeam_channel::{Receiver, Sender};
 use image::{DynamicImage, GenericImageView};
-use shipyard::{AllStoragesView, IntoWorkload, Unique, Workload, WorkloadModificator};
+use shipyard::{AllStoragesView, IntoWorkload, Unique, ViewMut, Workload, WorkloadModificator};
 
 use crate::{
-    images::{ImageCreator, ImageMeta, StandardImage},
+    images::{ImageCreator, ImageIndex, ImageMeta, StandardImage},
     layout::LayoutManager,
     renderer::{
         texture::Texture,
@@ -92,9 +92,9 @@ pub struct Storage {
 }
 
 pub struct TextureData {
-    texture: Texture,
-    path: PathBuf,
-    resolution: Size<u32>,
+    pub texture: Texture,
+    pub path: PathBuf,
+    pub resolution: Size<u32>,
 }
 
 //====================================================================
@@ -131,6 +131,11 @@ impl Storage {
     pub fn _stop_loading(&mut self) {
         self.load_kill_sender.send(true).ok();
         self.loading = false;
+    }
+
+    #[inline]
+    pub fn get_texture(&self, id: TextureID) -> Option<&TextureData> {
+        self.textures.get(&id)
     }
 }
 
@@ -271,6 +276,7 @@ fn sys_spawn_new_images(
     mut layout: ResMut<LayoutManager>,
 
     mut image_creator: ImageCreator,
+    mut vm_indexed: ViewMut<ImageIndex>,
 ) {
     storage.to_spawn.iter().for_each(|id| {
         let texture = storage.textures.get(id).unwrap();
@@ -293,11 +299,13 @@ fn sys_spawn_new_images(
 
         let meta = ImageMeta {
             texture_resolution: texture.resolution,
-            // aspect: texture.resolution.width as f32 / texture.resolution.height as f32,
             aspect: texture.resolution.height as f32 / texture.resolution.width as f32,
         };
 
-        image_creator.spawn(image, meta, index);
+        let entity_id = image_creator.spawn_image(image, meta);
+        image_creator
+            .entities
+            .add_component(entity_id, &mut vm_indexed, ImageIndex { index });
     });
 
     storage.to_spawn.clear();

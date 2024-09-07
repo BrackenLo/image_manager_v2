@@ -1,5 +1,7 @@
 //====================================================================
 
+use std::marker::PhantomData;
+
 use shipyard::{AllStoragesView, Unique};
 use wgpu::util::DeviceExt;
 
@@ -13,8 +15,13 @@ use super::{Device, Queue};
 
 //====================================================================
 
+pub struct MainCamera;
+pub struct UiCamera;
+
 #[derive(Unique)]
-pub struct MainCamera {
+pub struct Camera<T: 'static + Send + Sync> {
+    phantom: PhantomData<T>,
+
     camera_buffer: wgpu::Buffer,
     camera_bind_group_layout: wgpu::BindGroupLayout,
     camera_bind_group: wgpu::BindGroup,
@@ -22,7 +29,10 @@ pub struct MainCamera {
     pub(crate) raw: OrthographicCamera,
 }
 
-impl MainCamera {
+impl<T> Camera<T>
+where
+    T: 'static + Send + Sync,
+{
     pub fn new(device: &wgpu::Device, size: Size<u32>) -> Self {
         let camera = OrthographicCamera::new_sized(size.width as f32, size.height as f32);
 
@@ -57,6 +67,8 @@ impl MainCamera {
         });
 
         Self {
+            phantom: PhantomData,
+
             camera_buffer,
             camera_bind_group_layout,
             camera_bind_group,
@@ -89,12 +101,23 @@ pub(super) fn sys_setup_camera(
     device: Res<Device>,
     size: Res<WindowSize>,
 ) {
-    let camera = MainCamera::new(device.inner(), size.inner());
+    let main_camera = Camera::<MainCamera>::new(device.inner(), size.inner());
+    let ui_camera = Camera::<UiCamera>::new(device.inner(), size.inner());
 
-    all_storages.insert(camera);
+    all_storages.insert(main_camera).insert(ui_camera);
 }
 
-pub(super) fn sys_update_camera(queue: Res<Queue>, camera: ResMut<MainCamera>) {
+pub(super) fn sys_resize_camera<T: 'static + Send + Sync>(
+    size: Res<WindowSize>,
+    mut camera: ResMut<Camera<T>>,
+) {
+    camera.raw.set_size(size.width_f32(), size.height_f32());
+}
+
+pub(super) fn sys_update_camera<T: 'static + Send + Sync>(
+    queue: Res<Queue>,
+    camera: ResMut<Camera<T>>,
+) {
     if camera.is_modified() {
         camera.update_camera(queue.inner());
     }
@@ -102,7 +125,7 @@ pub(super) fn sys_update_camera(queue: Res<Queue>, camera: ResMut<MainCamera>) {
 
 //====================================================================
 
-pub trait Camera {
+pub trait CameraType {
     fn into_uniform(&self) -> CameraUniform;
 }
 
@@ -154,7 +177,7 @@ impl Default for OrthographicCamera {
     }
 }
 
-impl Camera for OrthographicCamera {
+impl CameraType for OrthographicCamera {
     fn into_uniform(&self) -> CameraUniform {
         CameraUniform::new(self.get_projection(), self.translation.into())
     }
@@ -204,8 +227,8 @@ impl OrthographicCamera {
 
         self.left = -half_width;
         self.right = half_width;
-        self.bottom = -half_height;
         self.top = half_height;
+        self.bottom = -half_height;
     }
 
     pub fn screen_to_camera(&self, screen_pos: glam::Vec2) -> glam::Vec2 {
@@ -243,7 +266,7 @@ impl Default for PerspectiveCamera {
     }
 }
 
-impl Camera for PerspectiveCamera {
+impl CameraType for PerspectiveCamera {
     fn into_uniform(&self) -> CameraUniform {
         CameraUniform::new(self.get_projection(), self.translation.into())
     }

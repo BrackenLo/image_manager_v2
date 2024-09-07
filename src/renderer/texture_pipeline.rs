@@ -7,7 +7,7 @@ use wgpu::util::DeviceExt;
 
 use crate::tools::Rect;
 
-use super::{camera::MainCamera, texture::Texture, tools, Vertex};
+use super::{texture::Texture, tools, Vertex};
 
 //====================================================================
 
@@ -56,7 +56,7 @@ pub const TEXTURE_INDICES: [u16; 6] = [0, 1, 3, 0, 3, 2];
 //====================================================================
 
 #[repr(C)]
-#[derive(Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
+#[derive(Clone, Copy, bytemuck::Zeroable, bytemuck::Pod, Default)]
 pub struct RawTextureInstance {
     pub pos: [f32; 2],
     pub size: [f32; 2],
@@ -124,7 +124,7 @@ impl TexturePipeline {
     pub fn new(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
-        camera: &MainCamera,
+        camera_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> Self
     where
         Self: Sized,
@@ -149,7 +149,7 @@ impl TexturePipeline {
             &config,
             "Texture Pipeline",
             &[
-                camera.bind_group_layout(),
+                camera_bind_group_layout,
                 &texture_bind_group_layout,
                 &texture_instance_bind_group_layout,
             ],
@@ -193,7 +193,7 @@ impl TexturePipeline {
     pub fn render<'a, I: Iterator<Item = &'a TextureInstance>>(
         &self,
         pass: &mut wgpu::RenderPass,
-        camera: &MainCamera,
+        camera_bind_goup: &wgpu::BindGroup,
         to_render: I,
         viewport: Option<&Rect>,
     ) {
@@ -212,7 +212,7 @@ impl TexturePipeline {
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-        pass.set_bind_group(0, camera.bind_group(), &[]);
+        pass.set_bind_group(0, camera_bind_goup, &[]);
 
         to_render.for_each(|to_render| {
             pass.set_bind_group(1, &to_render.texture_bind_group, &[]);

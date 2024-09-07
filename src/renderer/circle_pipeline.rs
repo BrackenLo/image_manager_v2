@@ -9,7 +9,6 @@ use crate::{
 };
 
 use super::{
-    camera::MainCamera,
     tools::{self},
     Device, Queue, Vertex,
 };
@@ -113,13 +112,13 @@ impl CirclePipeline {
     pub fn new(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
-        camera: &MainCamera,
+        camera_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> Self {
         let pipeline = tools::create_pipeline(
             device,
             config,
             "Circle Pipeline",
-            &[&camera.bind_group_layout()],
+            &[&camera_bind_group_layout],
             &[RawVertex::desc(), RawInstance::desc()],
             include_str!("circle_shader.wgsl").into(),
             // tools::RenderPipelineDescriptor {
@@ -164,9 +163,9 @@ impl CirclePipeline {
         }
     }
 
-    pub fn render(&self, pass: &mut wgpu::RenderPass, camera: &MainCamera) {
+    pub fn render(&self, pass: &mut wgpu::RenderPass, camera_bind_group: &wgpu::BindGroup) {
         pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &camera.bind_group(), &[]);
+        pass.set_bind_group(0, camera_bind_group, &[]);
 
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
