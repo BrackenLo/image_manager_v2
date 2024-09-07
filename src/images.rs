@@ -6,17 +6,15 @@ use shipyard::{
 };
 
 use crate::{
-    renderer::texture_pipeline::TextureInstance,
-    shipyard_tools::{Plugin, Stages},
-    tools::Size,
+    app::Stages, renderer::texture_pipeline::TextureInstance, shipyard_tools::Plugin, tools::Size,
 };
 
 //====================================================================
 
 pub(crate) struct ImagePlugin;
 
-impl Plugin for ImagePlugin {
-    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder) {
+impl Plugin<Stages> for ImagePlugin {
+    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
         workload_builder.add_workload(
             Stages::Last,
             Workload::new("")

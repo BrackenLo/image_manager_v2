@@ -14,8 +14,9 @@ use texture::{sys_resize_depth_texture, sys_setup_depth_texture, DepthTexture};
 use texture_pipeline::TexturePipeline;
 
 use crate::{
+    app::Stages,
     images::{ImageShown, StandardImage},
-    shipyard_tools::{Plugin, Res, ResMut, Stages, UniqueTools},
+    shipyard_tools::{Plugin, Res, ResMut, UniqueTools},
     tools::Size,
     window::{ResizeEvent, WindowSize},
 };
@@ -31,8 +32,8 @@ pub mod tools;
 
 pub(crate) struct RendererPlugin;
 
-impl Plugin for RendererPlugin {
-    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder) {
+impl Plugin<Stages> for RendererPlugin {
+    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
         workload_builder
             .add_workload(
                 Stages::PreSetup,

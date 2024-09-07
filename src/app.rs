@@ -13,13 +13,32 @@ use crate::{
     images::ImagePlugin,
     layout::LayoutPlugin,
     renderer::{Device, Queue, RenderPassTools, RendererPlugin, Surface},
-    shipyard_tools::{Res, Stages, WorkloadBuilder},
+    shipyard_tools::{Res, WorkloadBuilder},
     storage::StoragePlugin,
     tools::{self, Size, ToolsPlugin},
     window::{self, Window},
 };
 
 //====================================================================
+
+#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug, shipyard::Label, enum_iterator::Sequence)]
+pub enum Stages {
+    PreSetup,
+    Setup,
+    PostSetup,
+
+    First,
+
+    PreUpdate,
+    Update,
+    PostUpdate,
+
+    PreRender,
+    Render,
+    PostRender,
+
+    Last,
+}
 
 const TIMESTEP: f32 = 1. / 75.;
 

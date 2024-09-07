@@ -1,8 +1,10 @@
 //====================================================================
 
-use std::ops::{Deref, DerefMut};
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 
-use ahash::{HashMap, HashMapExt};
 use shipyard::{info::TypeId, Unique, World};
 
 //====================================================================
@@ -74,32 +76,34 @@ impl UniqueTools for shipyard::AllStoragesView<'_> {
 
 //====================================================================
 
-#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug, shipyard::Label, enum_iterator::Sequence)]
-pub enum Stages {
-    PreSetup,
-    Setup,
-    PostSetup,
-
-    First,
-
-    PreUpdate,
-    Update,
-    PostUpdate,
-
-    PreRender,
-    Render,
-    PostRender,
-
-    Last,
-}
-
-pub struct WorkloadBuilder<'a> {
+// TODO - Trait Aliases
+pub struct WorkloadBuilder<'a, Stages>
+where
+    Stages: std::hash::Hash
+        + PartialEq
+        + Eq
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + shipyard::Label
+        + enum_iterator::Sequence,
+{
     world: &'a shipyard::World,
     workloads: HashMap<Stages, shipyard::Workload>,
     event_workloads: HashMap<TypeId, shipyard::Workload>,
 }
 
-impl<'a> WorkloadBuilder<'a> {
+impl<'a, Stages> WorkloadBuilder<'a, Stages>
+where
+    Stages: std::hash::Hash
+        + PartialEq
+        + Eq
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + shipyard::Label
+        + enum_iterator::Sequence,
+{
     pub fn new(world: &'a shipyard::World) -> Self {
         Self {
             world,
@@ -134,7 +138,7 @@ impl<'a> WorkloadBuilder<'a> {
         self
     }
 
-    pub fn add_plugin<T: Plugin>(mut self, workload: T) -> Self {
+    pub fn add_plugin<T: Plugin<Stages>>(mut self, workload: T) -> Self {
         log::trace!("Adding plugin '{}'", std::any::type_name::<T>());
         workload.build(&mut self);
 
@@ -195,8 +199,18 @@ impl<'a> WorkloadBuilder<'a> {
     }
 }
 
-pub trait Plugin {
-    fn build(&self, workload_builder: &mut WorkloadBuilder);
+pub trait Plugin<Stages>
+where
+    Stages: std::hash::Hash
+        + PartialEq
+        + Eq
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + shipyard::Label
+        + enum_iterator::Sequence,
+{
+    fn build(&self, workload_builder: &mut WorkloadBuilder<Stages>);
 }
 
 //====================================================================

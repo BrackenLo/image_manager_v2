@@ -11,7 +11,8 @@ use shipyard::{AllStoragesView, Unique, Workload};
 use winit::{event::MouseButton, keyboard::KeyCode};
 
 use crate::{
-    shipyard_tools::{Plugin, Res, ResMut, Stages, UniqueTools},
+    app::Stages,
+    shipyard_tools::{Plugin, Res, ResMut, UniqueTools},
     window::WindowSize,
 };
 
@@ -19,8 +20,8 @@ use crate::{
 
 pub(crate) struct ToolsPlugin;
 
-impl Plugin for ToolsPlugin {
-    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder) {
+impl Plugin<Stages> for ToolsPlugin {
+    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
         workload_builder
             .add_workload(
                 Stages::Setup,

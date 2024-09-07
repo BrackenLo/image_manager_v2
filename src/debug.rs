@@ -3,13 +3,14 @@
 use shipyard::{AllStoragesView, EntitiesViewMut, EntityId, Get, Unique, ViewMut, Workload};
 
 use crate::{
+    app::Stages,
     images::Pos,
     renderer::{
         camera::{Camera, MainCamera},
         circle_pipeline::Circle,
         text::{TextBuffer, TextBufferDescriptor, TextPipeline},
     },
-    shipyard_tools::{Plugin, Res, ResMut, Stages},
+    shipyard_tools::{Plugin, Res, ResMut},
     tools::{MouseInput, Time},
 };
 
@@ -17,8 +18,8 @@ use crate::{
 
 pub(crate) struct DebugPlugin;
 
-impl Plugin for DebugPlugin {
-    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder) {
+impl Plugin<Stages> for DebugPlugin {
+    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
         workload_builder
             .add_workload(
                 Stages::Setup,

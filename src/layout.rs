@@ -7,6 +7,7 @@ use shipyard::{
 use winit::{event::MouseButton, keyboard::KeyCode};
 
 use crate::{
+    app::Stages,
     images::{
         Color, ImageCreator, ImageDirtier, ImageDirty, ImageHovered, ImageIndex, ImageMeta,
         ImageSelected, ImageShown, ImageSize, Pos, StandardImage, ToRemove,
@@ -16,7 +17,7 @@ use crate::{
         texture_pipeline::{RawTextureInstance, TextureInstance, TexturePipeline},
         Device, Queue,
     },
-    shipyard_tools::{Event, EventHandler, Plugin, Res, ResMut, Stages, UniqueTools},
+    shipyard_tools::{Event, EventHandler, Plugin, Res, ResMut, UniqueTools},
     storage::Storage,
     tools::{aabb_point, Input, MouseInput, Time},
     window::{ResizeEvent, WindowSize},
@@ -26,8 +27,8 @@ use crate::{
 
 pub(crate) struct LayoutPlugin;
 
-impl Plugin for LayoutPlugin {
-    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder) {
+impl Plugin<Stages> for LayoutPlugin {
+    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
         workload_builder
             .add_workload(
                 Stages::Setup,

@@ -12,6 +12,7 @@ use image::{DynamicImage, GenericImageView};
 use shipyard::{AllStoragesView, IntoWorkload, Unique, ViewMut, Workload, WorkloadModificator};
 
 use crate::{
+    app::Stages,
     images::{ImageCreator, ImageIndex, ImageMeta, StandardImage},
     layout::LayoutManager,
     renderer::{
@@ -19,7 +20,7 @@ use crate::{
         texture_pipeline::{RawTextureInstance, TextureInstance, TexturePipeline},
         Device, Queue,
     },
-    shipyard_tools::{Plugin, Res, ResMut, Stages},
+    shipyard_tools::{Plugin, Res, ResMut},
     tools::Size,
 };
 
@@ -27,8 +28,8 @@ use crate::{
 
 pub(crate) struct StoragePlugin;
 
-impl Plugin for StoragePlugin {
-    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder) {
+impl Plugin<Stages> for StoragePlugin {
+    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
         workload_builder
             .add_workload(
                 Stages::PreSetup,
