@@ -8,7 +8,7 @@ use crate::{
     renderer::{
         camera::{Camera, MainCamera},
         circle_pipeline::Circle,
-        text::{TextBuffer, TextBufferDescriptor, TextPipeline},
+        text_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
     },
     shipyard_tools::{Plugin, Res, ResMut},
     tools::{MouseInput, Time},
@@ -120,7 +120,15 @@ fn sys_setup_mouse_tracker(
 ) {
     let text_id = entities.add_entity(
         &mut vm_text_buffer,
-        TextBuffer::new(&mut text, &TextBufferDescriptor::default()),
+        TextBuffer::new(
+            &mut text,
+            &TextBufferDescriptor {
+                // bounds: todo!(),
+                // width: todo!(),
+                // height: todo!(),
+                ..Default::default()
+            },
+        ),
     );
 
     let circle_id = entities.add_entity(

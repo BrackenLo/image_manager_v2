@@ -2,7 +2,7 @@
 
 use glyphon::{
     Attrs, Buffer, Cache, FontSystem, Metrics, Resolution, Shaping, SwashCache, TextArea,
-    TextAtlas, TextBounds, TextRenderer, Viewport,
+    TextAtlas, TextBounds, TextRenderer, Viewport, Wrap,
 };
 use shipyard::{AllStoragesView, Component, IntoIter, Unique, View};
 
@@ -132,9 +132,12 @@ pub struct TextBufferDescriptor<'a> {
     pub font_size: f32,
     pub line_height: f32,
     pub bounds: TextBounds,
+    pub word_wrap: Wrap,
 
     pub text: &'a str,
     pub pos: (f32, f32),
+    pub width: Option<f32>,
+    pub height: Option<f32>,
 }
 
 impl Default for TextBufferDescriptor<'_> {
@@ -146,10 +149,23 @@ impl Default for TextBufferDescriptor<'_> {
                 left: 0,
                 top: 0,
                 right: 800,
-                bottom: 160,
+                bottom: 300,
             },
+            word_wrap: Wrap::Word,
+
             text: "",
             pos: (0., 0.),
+            width: Some(800.),
+            height: None,
+        }
+    }
+}
+
+impl<'a> TextBufferDescriptor<'a> {
+    pub fn new_text(text: &'a str) -> Self {
+        Self {
+            text,
+            ..Default::default()
         }
     }
 }
@@ -176,6 +192,9 @@ impl TextBuffer {
             Shaping::Advanced,
         );
 
+        buffer.set_wrap(&mut text_pipeline.font_system, desc.word_wrap);
+        buffer.set_size(&mut text_pipeline.font_system, desc.width, desc.height);
+
         Self {
             buffer,
             bounds: desc.bounds,
@@ -192,6 +211,29 @@ impl TextBuffer {
             Attrs::new(),
             Shaping::Advanced,
         );
+    }
+
+    #[inline]
+    pub fn set_size(
+        &mut self,
+        text_pipeline: &mut TextPipeline,
+        width: Option<f32>,
+        height: Option<f32>,
+    ) {
+        self.buffer
+            .set_size(&mut text_pipeline.font_system, width, height);
+    }
+
+    #[inline]
+    pub fn set_metrics_and_size(
+        &mut self,
+        text_pipeline: &mut TextPipeline,
+        metrics: Metrics,
+        width: Option<f32>,
+        height: Option<f32>,
+    ) {
+        self.buffer
+            .set_metrics_and_size(&mut text_pipeline.font_system, metrics, width, height);
     }
 }
 

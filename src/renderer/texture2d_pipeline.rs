@@ -57,24 +57,24 @@ pub const TEXTURE_INDICES: [u16; 6] = [0, 1, 3, 0, 3, 2];
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Zeroable, bytemuck::Pod, Default)]
-pub struct RawTextureInstance {
+pub struct RawTexture2dInstance {
     pub pos: [f32; 2],
     pub size: [f32; 2],
     pub color: [f32; 4],
 }
 
-pub struct TextureInstance {
+pub struct Texture2dInstance {
     bind_group: wgpu::BindGroup,
     buffer: wgpu::Buffer,
 
     texture_bind_group: wgpu::BindGroup,
 }
 
-impl TextureInstance {
+impl Texture2dInstance {
     pub fn new(
         device: &wgpu::Device,
-        pipeline: &TexturePipeline,
-        data: RawTextureInstance,
+        pipeline: &Texture2dPipeline,
+        data: RawTexture2dInstance,
         texture: &Texture,
     ) -> Self {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -102,7 +102,7 @@ impl TextureInstance {
     }
 
     #[inline]
-    pub fn update(&self, queue: &wgpu::Queue, data: RawTextureInstance) {
+    pub fn update(&self, queue: &wgpu::Queue, data: RawTexture2dInstance) {
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[data]));
     }
 }
@@ -110,7 +110,7 @@ impl TextureInstance {
 //====================================================================
 
 #[derive(Unique)]
-pub struct TexturePipeline {
+pub struct Texture2dPipeline {
     pipeline: wgpu::RenderPipeline,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     pub texture_instance_bind_group_layout: wgpu::BindGroupLayout,
@@ -120,7 +120,7 @@ pub struct TexturePipeline {
     index_count: u32,
 }
 
-impl TexturePipeline {
+impl Texture2dPipeline {
     pub fn new(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
@@ -190,7 +190,7 @@ impl TexturePipeline {
         })
     }
 
-    pub fn render<'a, I: Iterator<Item = &'a TextureInstance>>(
+    pub fn render<'a, I: Iterator<Item = &'a Texture2dInstance>>(
         &self,
         pass: &mut wgpu::RenderPass,
         camera_bind_goup: &wgpu::BindGroup,

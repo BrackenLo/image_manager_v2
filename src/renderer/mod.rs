@@ -6,12 +6,12 @@ use camera::{
 use circle_pipeline::{sys_update_circle_pipeline, CirclePipeline};
 use pollster::FutureExt;
 use shipyard::{AllStoragesView, IntoIter, IntoWorkload, Unique, View, Workload};
-use text::{
+use text_pipeline::{
     sys_prep_text, sys_resize_text_pipeline, sys_setup_text_pipeline, sys_trim_text_pipeline,
     TextPipeline,
 };
 use texture::{sys_resize_depth_texture, sys_setup_depth_texture, DepthTexture};
-use texture_pipeline::TexturePipeline;
+use texture2d_pipeline::Texture2dPipeline;
 
 use crate::{
     app::Stages,
@@ -23,9 +23,9 @@ use crate::{
 
 pub mod camera;
 pub mod circle_pipeline;
-pub mod text;
+pub mod text_pipeline;
 pub mod texture;
-pub mod texture_pipeline;
+pub mod texture2d_pipeline;
 pub mod tools;
 
 //====================================================================
@@ -220,7 +220,7 @@ fn sys_setup_pipelines(
     camera: Res<Camera<MainCamera>>,
 ) {
     let texture_pipeline =
-        TexturePipeline::new(device.inner(), config.inner(), camera.bind_group_layout());
+        Texture2dPipeline::new(device.inner(), config.inner(), camera.bind_group_layout());
     let circle_pipeline =
         CirclePipeline::new(device.inner(), config.inner(), camera.bind_group_layout());
 
@@ -239,7 +239,7 @@ fn sys_render(
     depth: Res<DepthTexture>,
 
     text_pipeline: Res<TextPipeline>,
-    texture_pipeline: Res<TexturePipeline>,
+    texture_pipeline: Res<Texture2dPipeline>,
     circle_pipeline: Res<CirclePipeline>,
 
     main_camera: Res<Camera<MainCamera>>,

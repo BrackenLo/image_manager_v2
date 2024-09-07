@@ -1,5 +1,6 @@
 //====================================================================
 
+use glyphon::Metrics;
 use shipyard::{
     AllStoragesView, EntitiesView, EntityId, Get, IntoIter, IntoWithId, IntoWorkload, Remove,
     Unique, View, ViewMut, Workload,
@@ -14,7 +15,8 @@ use crate::{
     },
     renderer::{
         camera::{Camera, MainCamera},
-        texture_pipeline::{RawTextureInstance, TextureInstance, TexturePipeline},
+        text_pipeline::{TextBuffer, TextPipeline},
+        texture2d_pipeline::{RawTexture2dInstance, Texture2dInstance, Texture2dPipeline},
         Device, Queue,
     },
     shipyard_tools::{Event, EventHandler, Plugin, Res, ResMut, UniqueTools},
@@ -47,7 +49,8 @@ impl Plugin<Stages> for LayoutPlugin {
                 Workload::new("")
                     .with_system(sys_order_images)
                     .with_system(sys_rebuild_images)
-                    .into_sequential_workload(),
+                    .into_sequential_workload()
+                    .with_system(sys_position_text),
             )
             //
             .add_event::<ResizeEvent>(
@@ -91,7 +94,7 @@ impl Default for LayoutManager {
             width: 1.,
             columns: 1,
             tile_size: glam::vec2(200., 200.),
-            tile_spacing: glam::vec2(10., 30.),
+            tile_spacing: glam::vec2(10., 60.),
 
             max_tile_size: glam::vec2(500., 500.),
             min_tile_size: glam::vec2(80., 80.),
@@ -162,8 +165,6 @@ fn sys_resize_layout(
 
     image_dirtier.mark_all_dirty();
 
-    let row_width = layout.columns as f32 * (layout.tile_size.x + layout.tile_spacing.x);
-
     let half_width = size.width_f32() / 2.;
     let half_height = size.height_f32() / 2.;
 
@@ -172,7 +173,7 @@ fn sys_resize_layout(
     camera.raw.top = half_height;
     camera.raw.bottom = -half_height;
 
-    camera.raw.translation.x = row_width / 2.;
+    // camera.raw.translation.x = row_width / 2.;
 }
 
 //====================================================================
@@ -196,7 +197,9 @@ fn sys_order_images(
         false => 0.,
     };
 
-    let start_x = (layout.tile_size.x + layout.tile_spacing.x) / 2. + offset_x;
+    let row_width = layout.columns as f32 * (layout.tile_size.x + layout.tile_spacing.x);
+
+    let start_x = (layout.tile_size.x + layout.tile_spacing.x) / 2. + offset_x + -row_width / 2.;
     let start_y = size.height_f32() / 2. - layout.tile_size.y / 2.;
 
     (&mut vm_pos, &mut vm_size, &v_index, &v_meta, &v_dirty)
@@ -244,12 +247,65 @@ fn sys_rebuild_images(
         .for_each(|(pos, size, color, image, _)| {
             image.instance.update(
                 queue.inner(),
-                RawTextureInstance {
+                RawTexture2dInstance {
                     pos: pos.to_array(),
                     size: size.to_array(),
                     color: color.to_array(),
                 },
             )
+        });
+}
+
+fn sys_position_text(
+    layout: Res<LayoutManager>,
+    size: Res<WindowSize>,
+    camera: Res<Camera<MainCamera>>,
+    mut pipeline: ResMut<TextPipeline>,
+
+    v_pos: View<Pos>,
+    v_index: View<ImageIndex>,
+    mut vm_text: ViewMut<TextBuffer>,
+) {
+    // let left = (camera.raw.left - camera.raw.translation.x) as i32;
+    // let right = (camera.raw.right - camera.raw.translation.x) as i32;
+    // let top = (camera.raw.top + camera.raw.translation.y) as i32;
+    // let bottom = (camera.raw.bottom + camera.raw.translation.y) as i32;
+    let top = 0;
+    let bottom = size.height() as i32;
+    let left = 0;
+    let right = size.width() as i32;
+
+    let start_x = camera.raw.translation.x + size.width_f32() / 2. - layout.tile_size.x / 2.;
+    let start_y = camera.raw.translation.y + size.height_f32() / 2. + layout.tile_size.y / 2.;
+
+    let font_scale = (layout.tile_size.x / layout.max_tile_size.x) * 30. + 2.;
+
+    (&v_pos, &v_index, &mut vm_text)
+        .iter()
+        .for_each(|(pos, _, text)| {
+            text.pos.0 = start_x + pos.x;
+            text.pos.1 = start_y - pos.y;
+
+            // text.pos.0 = camera.raw.translation.x + pos.x + size.width_f32() / 2.;
+            // text.pos.0 = pos.x ;
+
+            // text.pos.1 = camera.raw.translation.y - pos.y;
+
+            // text.bounds.top = 0;
+            // text.bounds.bottom = size.height() as i32 - 0;
+            // text.bounds.left = 0;
+            // text.bounds.right = size.width() as i32 - 0;
+            text.bounds.top = top;
+            text.bounds.bottom = bottom;
+            text.bounds.left = left;
+            text.bounds.right = right;
+
+            text.set_metrics_and_size(
+                &mut pipeline,
+                Metrics::relative(font_scale, 1.2),
+                Some(layout.tile_size.x),
+                Some(layout.tile_spacing.y),
+            );
         });
 }
 
@@ -266,6 +322,12 @@ fn sys_navigate_layout(
 
     mut image_dirtier: ImageDirtier,
 ) {
+    // // DEBUG
+    // let a = keys.pressed(KeyCode::KeyA);
+    // let d = keys.pressed(KeyCode::KeyD);
+    // let x = (a as i8 - d as i8) as f32 * 40.;
+    // camera.raw.translation.x += x;
+
     // Mods
     let shift = keys.pressed(KeyCode::ShiftLeft);
     let ctrl = keys.pressed(KeyCode::ControlLeft);
@@ -304,9 +366,6 @@ fn sys_navigate_layout(
 
         layout.columns =
             (layout.width as u32 / (layout.tile_size.x + layout.tile_spacing.x) as u32).max(1);
-
-        let row_width = layout.columns as f32 * (layout.tile_size.x + layout.tile_spacing.x);
-        camera.raw.translation.x = row_width / 2.;
     }
 
     if y != 0. {
@@ -428,7 +487,7 @@ fn sys_select_images(
 fn sys_process_selected(
     events: Res<EventHandler>,
     device: Res<Device>,
-    pipeline: Res<TexturePipeline>,
+    pipeline: Res<Texture2dPipeline>,
     storage: Res<Storage>,
 
     mut image_creator: ImageCreator,
@@ -455,10 +514,10 @@ fn sys_process_selected(
 
     let image = StandardImage {
         id: original_image.id,
-        instance: TextureInstance::new(
+        instance: Texture2dInstance::new(
             device.inner(),
             &pipeline,
-            RawTextureInstance::default(),
+            RawTexture2dInstance::default(),
             &texture.texture,
         ),
     };

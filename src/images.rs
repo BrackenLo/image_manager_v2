@@ -6,7 +6,8 @@ use shipyard::{
 };
 
 use crate::{
-    app::Stages, renderer::texture_pipeline::TextureInstance, shipyard_tools::Plugin, tools::Size,
+    app::Stages, renderer::texture2d_pipeline::Texture2dInstance, shipyard_tools::Plugin,
+    tools::Size,
 };
 
 //====================================================================
@@ -71,7 +72,7 @@ impl Default for ImageSize {
     }
 }
 
-#[derive(Component, Clone)]
+#[derive(Component)]
 pub struct ImageMeta {
     pub texture_resolution: Size<u32>,
     pub aspect: f32,
@@ -117,7 +118,7 @@ pub struct Image;
 #[derive(Component)]
 pub struct StandardImage {
     pub id: u64,
-    pub instance: TextureInstance,
+    pub instance: Texture2dInstance,
 }
 
 #[derive(Component)]

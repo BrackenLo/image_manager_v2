@@ -26,7 +26,7 @@ pub struct Camera<T: 'static + Send + Sync> {
     camera_bind_group_layout: wgpu::BindGroupLayout,
     camera_bind_group: wgpu::BindGroup,
 
-    pub(crate) raw: OrthographicCamera,
+    pub raw: OrthographicCamera,
 }
 
 impl<T> Camera<T>
