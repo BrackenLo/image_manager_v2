@@ -1,20 +1,20 @@
 //====================================================================
 
 use shipyard::{
-    AllStoragesView, EntitiesView, Get, IntoIter, IntoWithId, IntoWorkload, Remove, Unique, View,
-    ViewMut, Workload,
+    AllStoragesView, EntitiesView, EntityId, Get, IntoIter, IntoWithId, IntoWorkload, Remove,
+    Unique, View, ViewMut, Workload,
 };
-use winit::keyboard::KeyCode;
+use winit::{event::MouseButton, keyboard::KeyCode};
 
 use crate::{
     images::{
-        Color, ImageDirtier, ImageDirty, ImageIndex, ImageMeta, ImageSelected, ImageSize, Pos,
+        Color, ImageDirtier, ImageDirty, ImageHovered, ImageIndex, ImageMeta, ImageSize, Pos,
         StandardImage,
     },
     renderer::{camera::MainCamera, texture_pipeline::RawTextureInstance, Queue},
-    shipyard_tools::{Plugin, Res, ResMut, Stages, UniqueTools},
+    shipyard_tools::{Event, EventHandler, Plugin, Res, ResMut, Stages, UniqueTools},
     tools::{aabb_point, Input, MouseInput, Rect, Time},
-    window::WindowSize,
+    window::{ResizeEvent, WindowSize},
 };
 
 //====================================================================
@@ -32,8 +32,10 @@ impl Plugin for LayoutPlugin {
                 Stages::Update,
                 Workload::new("")
                     .with_system(sys_navigate_layout)
+                    .with_system(sys_hover_images)
+                    .into_sequential_workload()
                     .with_system(sys_select_images)
-                    .into_sequential_workload(),
+                    .with_system(sys_process_selected),
             )
             .add_workload(
                 Stages::PreRender,
@@ -42,10 +44,7 @@ impl Plugin for LayoutPlugin {
                     .with_system(sys_rebuild_images)
                     .into_sequential_workload(),
             )
-            .add_workload(
-                Stages::Resize,
-                Workload::new("").with_system(sys_resize_layout),
-            );
+            .add_event::<ResizeEvent>(Workload::new("").with_system(sys_resize_layout));
     }
 }
 
@@ -61,6 +60,8 @@ pub struct LayoutManager {
 
     max_tile_size: glam::Vec2,
     min_tile_size: glam::Vec2,
+
+    selected: Option<EntityId>,
 }
 
 impl Default for LayoutManager {
@@ -73,6 +74,8 @@ impl Default for LayoutManager {
 
             max_tile_size: glam::vec2(500., 500.),
             min_tile_size: glam::vec2(80., 80.),
+
+            selected: None,
         }
     }
 }
@@ -90,7 +93,7 @@ pub struct ImageViewport(Rect);
 
 impl ImageViewport {
     #[inline]
-    pub fn inner(&self) -> &Rect {
+    pub fn _inner(&self) -> &Rect {
         &self.0
     }
 }
@@ -118,6 +121,13 @@ impl Default for LayoutNavigation {
 
 //====================================================================
 
+#[derive(Event)]
+struct SelectedEvent {
+    selected: Option<EntityId>,
+}
+
+//====================================================================
+
 fn sys_setup_layout(all_storages: AllStoragesView) {
     all_storages
         .insert(LayoutManager::default())
@@ -133,7 +143,10 @@ fn sys_resize_layout(
 
     mut camera: ResMut<MainCamera>,
 ) {
-    viewport.0 = Rect::from_size(size.width_f32(), (size.height_f32() - 200.).max(1.));
+    viewport.0 = match layout.selected {
+        Some(_) => Rect::from_size(size.width_f32() / 2., (size.height_f32() - 200.).max(1.)),
+        None => Rect::from_size(size.width_f32(), (size.height_f32() - 200.).max(1.)),
+    };
 
     layout.columns =
         (viewport.0.width as u32 / (layout.tile_size.x + layout.tile_spacing.x) as u32).max(1);
@@ -154,6 +167,8 @@ fn sys_resize_layout(
 
     camera.raw.translation.x = row_width / 2.;
 }
+
+//====================================================================
 
 fn sys_order_images(
     layout: Res<LayoutManager>,
@@ -196,9 +211,6 @@ fn sys_order_images(
                     size.height = layout.tile_size.y;
                 }
             }
-
-            // size.width = layout.tile_size.x;
-            // size.height = layout.tile_size.y;
         });
 }
 
@@ -309,7 +321,7 @@ fn sys_navigate_layout(
 
 //====================================================================
 
-fn sys_select_images(
+fn sys_hover_images(
     layout: Res<LayoutManager>,
     camera: Res<MainCamera>,
     mouse: Res<MouseInput>,
@@ -320,12 +332,12 @@ fn sys_select_images(
 
     entities: EntitiesView,
     mut vm_dirty: ViewMut<ImageDirty>,
-    mut vm_selected: ViewMut<ImageSelected>,
+    mut vm_hovered: ViewMut<ImageHovered>,
 ) {
     let mouse_pos = camera.raw.screen_to_camera(mouse.screen_pos());
 
-    // Check already selected images
-    let to_remove = (&v_pos, &vm_selected)
+    // Check already hovered images
+    let to_remove = (&v_pos, &vm_hovered)
         .iter()
         .with_id()
         .filter_map(|(id, (pos, _))| {
@@ -337,14 +349,14 @@ fn sys_select_images(
         .collect::<Vec<_>>();
 
     to_remove.into_iter().for_each(|id| {
-        vm_selected.remove(id);
+        vm_hovered.remove(id);
         (&mut vm_color).get(id).unwrap().r = 1.;
 
         entities.add_component(id, &mut vm_dirty, ImageDirty);
     });
 
-    // Find newly selected images
-    let image = (&v_pos, &v_index, !&vm_selected)
+    // Find newly hovered images
+    let image = (&v_pos, &v_index, !&vm_hovered)
         .iter()
         .with_id()
         .find(|(_, (pos, _, _))| aabb_point(mouse_pos, glam::vec2(pos.x, pos.y), layout.tile_size));
@@ -358,7 +370,46 @@ fn sys_select_images(
     color.r = 0.;
 
     entities.add_component(id, &mut vm_dirty, ImageDirty);
-    entities.add_component(id, &mut vm_selected, ImageSelected);
+    entities.add_component(id, &mut vm_hovered, ImageHovered);
+}
+
+fn sys_select_images(
+    mut events: ResMut<EventHandler>,
+    input: Res<Input<MouseButton>>,
+
+    v_hovered: View<ImageHovered>,
+) {
+    if !input.just_pressed(MouseButton::Left) {
+        return;
+    }
+
+    let hovered = v_hovered.iter().with_id().next();
+
+    let id = match hovered {
+        Some((id, _)) => id,
+        None => return,
+    };
+
+    events.add_event(SelectedEvent { selected: Some(id) });
+}
+
+fn sys_process_selected(
+    events: Res<EventHandler>,
+    mut layout: ResMut<LayoutManager>,
+
+    v_image: View<StandardImage>,
+) {
+    let event = match events.get_event::<SelectedEvent>() {
+        Some(event) => event,
+        None => return,
+    };
+
+    let id = match event.selected {
+        Some(id) => id,
+        None => todo!(),
+    };
+
+    layout.selected = Some(id);
 }
 
 //====================================================================

@@ -15,7 +15,7 @@ use crate::{
     images::StandardImage,
     shipyard_tools::{Plugin, Res, ResMut, Stages, UniqueTools},
     tools::Size,
-    window::WindowSize,
+    window::{ResizeEvent, WindowSize},
 };
 
 pub mod camera;
@@ -59,8 +59,7 @@ impl Plugin for RendererPlugin {
                 Stages::PostRender,
                 Workload::new("").with_system(sys_trim_text_pipeline),
             )
-            .add_workload(
-                Stages::Resize,
+            .add_event::<ResizeEvent>(
                 Workload::new("")
                     .with_system(sys_resize)
                     .with_system(sys_resize_depth_texture)

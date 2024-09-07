@@ -5,7 +5,7 @@ use std::sync::Arc;
 use shipyard::{AllStoragesView, Unique};
 
 use crate::{
-    shipyard_tools::{ResMut, UniqueTools},
+    shipyard_tools::{Event, EventHandler, ResMut, UniqueTools},
     tools::Size,
 };
 
@@ -58,16 +58,25 @@ impl Window {
     }
 }
 
+#[derive(Event)]
+pub struct ResizeEvent;
+
 //====================================================================
 
-pub fn sys_add_window(window: Arc<winit::window::Window>, all_storages: AllStoragesView) {
+pub(super) fn sys_add_window(window: Arc<winit::window::Window>, all_storages: AllStoragesView) {
     all_storages
         .insert(WindowSize(window.inner_size().into()))
         .insert(Window(window));
 }
 
-pub fn sys_resize(new_size: Size<u32>, mut size: ResMut<WindowSize>) {
+pub(super) fn sys_resize(
+    new_size: Size<u32>,
+    mut size: ResMut<WindowSize>,
+    mut event_handler: ResMut<EventHandler>,
+) {
     size.0 = new_size;
+
+    event_handler.add_event(ResizeEvent);
 }
 
 //====================================================================

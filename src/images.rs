@@ -128,7 +128,7 @@ pub struct ImageIndex {
 pub struct ImageDirty;
 
 #[derive(Component)]
-pub struct ImageHighlighted;
+pub struct ImageHovered;
 
 #[derive(Component)]
 pub struct ImageSelected;

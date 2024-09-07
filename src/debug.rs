@@ -27,6 +27,10 @@ impl Plugin for DebugPlugin {
                     .with_system(sys_setup_mouse_tracker),
             )
             .add_workload(
+                Stages::PostSetup,
+                Workload::new("").with_system(sys_display_memory_usage),
+            )
+            .add_workload(
                 Stages::PreUpdate,
                 Workload::new("")
                     .with_system(sys_tick_upkeep)
@@ -37,6 +41,10 @@ impl Plugin for DebugPlugin {
 
 fn sys_setup_debug(all_storages: AllStoragesView) {
     all_storages.add_unique(Upkeep::new());
+}
+
+fn sys_display_memory_usage(all_storages: AllStoragesView) {
+    log::debug!("Memory Usage:\n{:#?}", all_storages.memory_usage());
 }
 
 //====================================================================

@@ -69,13 +69,15 @@ impl App {
         }
 
         self.world.run_with_data(window::sys_resize, new_size);
-        self.world.run_workload(Stages::Resize).unwrap();
+        // self.world.run_workload(Stages::Resize).unwrap();
     }
 
     //--------------------------------------------------
 
     fn tick(&mut self) {
         self.world.run_workload(Stages::First).unwrap();
+
+        crate::shipyard_tools::activate_events(&self.world);
 
         self.world.run_workload(Stages::PreUpdate).unwrap();
         self.world.run_workload(Stages::Update).unwrap();
@@ -152,11 +154,16 @@ impl App {
             WindowEvent::KeyboardInput { event, .. } => {
                 if let winit::keyboard::PhysicalKey::Code(key) = event.physical_key {
                     self.world.run_with_data(
-                        tools::sys_process_keypress,
+                        tools::sys_process_input::<winit::keyboard::KeyCode>,
                         (key, event.state.is_pressed()),
                     );
                 }
             }
+
+            WindowEvent::MouseInput { state, button, .. } => self.world.run_with_data(
+                tools::sys_process_input::<winit::event::MouseButton>,
+                (button, state.is_pressed()),
+            ),
 
             WindowEvent::CursorMoved { position, .. } => self.world.run_with_data(
                 tools::sys_process_mouse_pos,

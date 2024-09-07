@@ -3,11 +3,15 @@ name = "image_manager_v2"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+members = ["proc"]
+
 [dependencies]
 ahash = "0.8.11"
 anyhow = "1.0.86"
 bytemuck = { version = "1.17.1", features = ["derive"] }
 crossbeam-channel = "0.5.13"
+downcast = "0.11.0"
 enum-iterator = "2.1.0"
 env_logger = "0.11.5"
 glam = "0.29.0"
@@ -15,6 +19,7 @@ glyphon = { git = "https://github.com/grovesNL/glyphon.git" }
 image = "0.25.2"
 log = "0.4.22"
 pollster = "0.3.0"
+proc = { path = "proc/" }
 shipyard = "0.7.1"
 wgpu = "22.1.0"
 winit = "0.30.5"

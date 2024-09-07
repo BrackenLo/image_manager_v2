@@ -8,7 +8,7 @@ use std::{
 
 use ahash::{HashSet, HashSetExt};
 use shipyard::{AllStoragesView, Unique, Workload};
-use winit::keyboard::KeyCode;
+use winit::{event::MouseButton, keyboard::KeyCode};
 
 use crate::{
     shipyard_tools::{Plugin, Res, ResMut, Stages, UniqueTools},
@@ -33,7 +33,8 @@ impl Plugin for ToolsPlugin {
             .add_workload(
                 Stages::Last,
                 Workload::new("")
-                    .with_system(sys_reset_key_input)
+                    .with_system(sys_reset_input::<KeyCode>)
+                    .with_system(sys_reset_input::<MouseButton>)
                     .with_system(sys_reset_mouse_input),
             );
     }
@@ -43,6 +44,7 @@ fn sys_setup_uniques(all_storages: AllStoragesView) {
     all_storages
         .insert(Time::default())
         .insert(Input::<KeyCode>::default())
+        .insert(Input::<MouseButton>::default())
         .insert(MouseInput::default());
 }
 
@@ -56,7 +58,7 @@ pub struct Size<T> {
 
 impl<T> Size<T> {
     #[inline]
-    pub fn new(width: T, height: T) -> Self {
+    pub fn _new(width: T, height: T) -> Self {
         Self { width, height }
     }
 }
@@ -100,7 +102,7 @@ pub struct Rect {
 
 impl Rect {
     #[inline]
-    pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
+    pub fn _new(x: f32, y: f32, width: f32, height: f32) -> Self {
         Self {
             x,
             y,
@@ -183,7 +185,7 @@ fn sys_update_time(mut time: ResMut<Time>) {
 #[derive(Unique, Debug)]
 pub struct Input<T>
 where
-    T: 'static + Send + Sync + Eq + PartialEq + Hash,
+    T: 'static + Send + Sync + Eq + PartialEq + Hash + Clone + Copy,
 {
     pressed: HashSet<T>,
     just_pressed: HashSet<T>,
@@ -192,7 +194,7 @@ where
 
 impl<T> Default for Input<T>
 where
-    T: 'static + Send + Sync + Eq + PartialEq + Hash,
+    T: 'static + Send + Sync + Eq + PartialEq + Hash + Clone + Copy,
 {
     fn default() -> Self {
         Self {
@@ -207,10 +209,6 @@ impl<T> Input<T>
 where
     T: 'static + Send + Sync + Eq + PartialEq + Hash + Clone + Copy,
 {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     fn add_pressed(&mut self, input: T) {
         self.pressed.insert(input);
         self.just_pressed.insert(input);
@@ -224,13 +222,6 @@ where
     fn reset(&mut self) {
         self.just_pressed.clear();
         self.released.clear();
-    }
-
-    fn process_input(&mut self, input: T, pressed: bool) {
-        match pressed {
-            true => self.add_pressed(input),
-            false => self.remove_pressed(input),
-        }
     }
 
     #[inline]
@@ -249,12 +240,21 @@ where
     }
 }
 
-pub(super) fn sys_process_keypress(key: (KeyCode, bool), mut keys: ResMut<Input<KeyCode>>) {
-    keys.process_input(key.0, key.1);
+pub(super) fn sys_process_input<T>(input_data: (T, bool), mut input: ResMut<Input<T>>)
+where
+    T: 'static + Send + Sync + Eq + PartialEq + Hash + Clone + Copy,
+{
+    match input_data.1 {
+        true => input.add_pressed(input_data.0),
+        false => input.remove_pressed(input_data.0),
+    }
 }
 
-fn sys_reset_key_input(mut keys: ResMut<Input<KeyCode>>) {
-    keys.reset();
+fn sys_reset_input<T>(mut input: ResMut<Input<T>>)
+where
+    T: 'static + Send + Sync + Eq + PartialEq + Hash + Clone + Copy,
+{
+    input.reset();
 }
 
 //--------------------------------------------------

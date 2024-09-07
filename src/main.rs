@@ -1,6 +1,6 @@
 //====================================================================
 
-use app::App;
+use crate::app::App;
 use winit::{application::ApplicationHandler, event_loop::EventLoop};
 
 pub(crate) mod app;

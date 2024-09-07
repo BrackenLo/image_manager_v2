@@ -1,6 +1,9 @@
 //====================================================================
 
+use std::ops::{Deref, DerefMut};
+
 use ahash::{HashMap, HashMapExt};
+use shipyard::{info::TypeId, Unique, World};
 
 //====================================================================
 
@@ -88,13 +91,12 @@ pub enum Stages {
     PostRender,
 
     Last,
-
-    Resize,
 }
 
 pub struct WorkloadBuilder<'a> {
     world: &'a shipyard::World,
     workloads: HashMap<Stages, shipyard::Workload>,
+    event_workloads: HashMap<TypeId, shipyard::Workload>,
 }
 
 impl<'a> WorkloadBuilder<'a> {
@@ -102,6 +104,7 @@ impl<'a> WorkloadBuilder<'a> {
         Self {
             world,
             workloads: HashMap::new(),
+            event_workloads: HashMap::new(),
         }
     }
 
@@ -113,6 +116,20 @@ impl<'a> WorkloadBuilder<'a> {
             .unwrap_or(shipyard::Workload::new(stage));
 
         self.workloads.insert(stage, old_workload.merge(workload));
+
+        self
+    }
+
+    pub fn add_event<E: Event>(&mut self, workload: shipyard::Workload) -> &mut Self {
+        let id = TypeId::of::<E>();
+
+        let old_workload = self
+            .event_workloads
+            .remove(&id)
+            .unwrap_or(shipyard::Workload::new(id));
+
+        self.event_workloads
+            .insert(id, old_workload.merge(workload));
 
         self
     }
@@ -158,11 +175,73 @@ impl<'a> WorkloadBuilder<'a> {
                     Err(e) => panic!("{e}"),
                 },
             );
+
+        // Process events
+        let ids = self
+            .event_workloads
+            .into_iter()
+            .map(|(id, workload)| {
+                workload.add_to_world(&self.world).unwrap();
+                id
+            })
+            .collect::<Vec<_>>();
+
+        let event_handler = EventHandler {
+            event_subscribers: ids,
+            ..Default::default()
+        };
+
+        self.world.add_unique(event_handler);
     }
 }
 
 pub trait Plugin {
     fn build(&self, workload_builder: &mut WorkloadBuilder);
+}
+
+//====================================================================
+
+pub use proc::Event;
+pub trait Event: Send + Sync + downcast::AnySync {}
+
+#[derive(Unique, Default)]
+pub struct EventHandler {
+    pending: HashMap<TypeId, Box<dyn Event>>,
+    active: HashMap<TypeId, Box<dyn Event>>,
+
+    event_subscribers: Vec<TypeId>,
+}
+
+impl EventHandler {
+    pub fn add_event<E: 'static + Event>(&mut self, event: E) {
+        let id = TypeId::of::<E>();
+
+        self.pending.insert(id, Box::new(event));
+    }
+
+    pub fn get_event<E: 'static + Event>(&self) -> Option<&E> {
+        let id = TypeId::of::<E>();
+        match self.active.get(&id) {
+            Some(data) => data.deref().as_any().downcast_ref(),
+            None => return None,
+        }
+    }
+}
+
+pub(super) fn activate_events(world: &World) {
+    let mut handler = world.borrow::<ResMut<EventHandler>>().unwrap();
+    let handler = handler.deref_mut();
+    std::mem::swap(&mut handler.active, &mut handler.pending);
+
+    handler.pending.clear();
+
+    handler
+        .active
+        .keys()
+        .for_each(|key| match handler.event_subscribers.contains(key) {
+            true => world.run_workload(*key).unwrap(),
+            _ => {}
+        });
 }
 
 //====================================================================
