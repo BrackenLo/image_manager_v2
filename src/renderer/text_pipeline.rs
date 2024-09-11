@@ -151,7 +151,7 @@ impl Default for TextBufferDescriptor<'_> {
                 right: 800,
                 bottom: 300,
             },
-            word_wrap: Wrap::Word,
+            word_wrap: Wrap::WordOrGlyph,
 
             text: "",
             pos: (0., 0.),

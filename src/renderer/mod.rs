@@ -50,10 +50,19 @@ impl Plugin<Stages> for RendererPlugin {
                     .into_workload(),
             )
             .add_workload(
-                Stages::PostUpdate,
+                // FIX - text appears wobbly when scrolling due to updating the frame after the camera does
+                Stages::PreUpdate,
                 (
                     sys_update_camera::<MainCamera>,
                     sys_update_camera::<UiCamera>,
+                )
+                    .into_workload(),
+            )
+            .add_workload(
+                Stages::PostUpdate,
+                (
+                    // sys_update_camera::<MainCamera>,
+                    // sys_update_camera::<UiCamera>,
                     sys_prep_text,
                     sys_update_circle_pipeline,
                 )

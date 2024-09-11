@@ -42,8 +42,13 @@ impl Plugin<Stages> for LayoutPlugin {
                     .into_workload(),
             )
             .add_workload(
-                Stages::PreRender,
-                (sys_order_images, sys_rebuild_images).into_sequential_workload(),
+                Stages::PostUpdate,
+                (
+                    sys_order_images,
+                    sys_rebuild_images,
+                    sys_reposition_text_dirty,
+                )
+                    .into_sequential_workload(),
             )
             //
             .add_event::<ResizeEvent>(
@@ -247,6 +252,51 @@ fn sys_rebuild_images(
                     color: color.to_array(),
                 },
             )
+        });
+}
+
+fn sys_reposition_text_dirty(
+    layout: Res<LayoutManager>,
+    size: Res<WindowSize>,
+    camera: Res<Camera<MainCamera>>,
+    mut pipeline: ResMut<TextPipeline>,
+
+    v_pos: View<Pos>,
+    v_index: View<ImageIndex>,
+    mut vm_text: ViewMut<TextBuffer>,
+    v_dirty: View<ImageDirty>,
+) {
+    if v_dirty.is_empty() {
+        return;
+    }
+
+    let top = 0;
+    let bottom = size.height() as i32;
+    let left = 0;
+    let right = size.width() as i32;
+
+    let start_x = camera.raw.translation.x + size.width_f32() / 2. - layout.tile_size.x / 2.;
+    let start_y = camera.raw.translation.y + size.height_f32() / 2. + layout.tile_size.y / 2.;
+
+    let font_scale = (layout.tile_size.x / layout.max_tile_size.x) * 30. + 2.;
+
+    (&v_pos, &v_index, &mut vm_text, &v_dirty)
+        .iter()
+        .for_each(|(pos, _, text, _)| {
+            text.pos.0 = start_x + pos.x;
+            text.pos.1 = start_y - pos.y;
+
+            text.bounds.top = top;
+            text.bounds.bottom = bottom;
+            text.bounds.left = left;
+            text.bounds.right = right;
+
+            text.set_metrics_and_size(
+                &mut pipeline,
+                Metrics::relative(font_scale, 1.2),
+                Some(layout.tile_size.x),
+                Some(layout.tile_spacing.y),
+            );
         });
 }
 
