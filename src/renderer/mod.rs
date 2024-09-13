@@ -23,6 +23,8 @@ use crate::{
 
 pub mod camera;
 pub mod circle_pipeline;
+pub mod gif2d_pipeline;
+pub mod shared;
 pub mod text_pipeline;
 pub mod texture;
 pub mod texture2d_pipeline;

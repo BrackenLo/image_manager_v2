@@ -8,7 +8,7 @@ use std::{
 
 use ahash::AHashMap;
 use crossbeam_channel::{Receiver, Sender};
-use image::{DynamicImage, GenericImageView};
+use image::{codecs::gif::GifDecoder, AnimationDecoder, DynamicImage, GenericImageView};
 use shipyard::{AllStoragesView, IntoWorkload, SystemModificator, Unique, ViewMut, Workload};
 
 use crate::{
@@ -100,6 +100,7 @@ pub struct TextureData {
 enum ImageChannel {
     Finished,
     Image(PathBuf, DynamicImage),
+    Gif(PathBuf, Vec<image::Frame>),
 }
 
 impl Storage {
@@ -181,22 +182,46 @@ fn load_images(
     image_sender: Sender<ImageChannel>,
 ) {
     for to_load in images.into_iter() {
-        let image_reader = image::ImageReader::open(&to_load).unwrap();
-        let image = image_reader.decode().unwrap();
+        let data = match to_load.extension() {
+            None => {
+                log::trace!("Skipping file path '{:?}'", &to_load);
+                continue;
+            }
+            Some(ext) => match ext.to_str() {
+                Some("jpg") | Some("png") => {
+                    let image_reader = image::ImageReader::open(&to_load).unwrap();
+                    let image = image_reader.decode().unwrap();
+
+                    ImageChannel::Image(to_load, image)
+                }
+
+                Some("gif") => {
+                    let file = std::fs::File::open(to_load.clone()).unwrap();
+                    let reader = std::io::BufReader::new(file);
+                    let gif = GifDecoder::new(reader).unwrap();
+                    let frames = gif.into_frames();
+                    let frames = frames.collect_frames().unwrap();
+
+                    ImageChannel::Gif(to_load, frames)
+                }
+
+                _ => continue,
+            },
+        };
 
         // Check if we should still be loading images before posting a new one
         if load_kill_receiver.try_recv().is_ok() {
             return;
         }
 
-        log::trace!(
-            "Loaded image {:?}",
-            &to_load.file_name().unwrap_or(&to_load.as_os_str())
-        );
+        if let ImageChannel::Image(buf, _) | ImageChannel::Gif(buf, _) = &data {
+            log::trace!(
+                "Loaded image {:?}",
+                &buf.file_name().unwrap_or(&buf.as_os_str())
+            );
+        }
 
-        image_sender
-            .send(ImageChannel::Image(to_load, image))
-            .unwrap();
+        image_sender.send(data).unwrap();
     }
 
     log::info!("Finished loading images");
@@ -218,6 +243,8 @@ fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: R
         match storage.image_receiver.try_recv() {
             Ok(image) => match image {
                 ImageChannel::Image(path, image) => to_process.push((path, image)),
+
+                ImageChannel::Gif(path, frames) => todo!(),
 
                 ImageChannel::Finished => {
                     storage.loading = false;

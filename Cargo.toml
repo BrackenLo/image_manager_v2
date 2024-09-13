@@ -16,7 +16,7 @@ enum-iterator = "2.1.0"
 env_logger = "0.11.5"
 glam = "0.29.0"
 glyphon = { git = "https://github.com/grovesNL/glyphon.git" }
-image = "0.25.2"
+image = { version = "0.25.2", features = ["gif"] }
 log = "0.4.22"
 pollster = "0.3.0"
 proc = { path = "proc/" }
