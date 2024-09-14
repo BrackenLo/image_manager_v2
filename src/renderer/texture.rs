@@ -1,7 +1,8 @@
 //====================================================================
 
-use image::GenericImageView;
+use image::{DynamicImage, Frame, GenericImage, GenericImageView};
 use shipyard::{AllStoragesView, Unique};
+use wgpu::util::DeviceExt;
 
 use crate::{
     shipyard_tools::{Res, ResMut},
@@ -51,6 +52,63 @@ pub(super) fn sys_resize_depth_texture(
     size: Res<WindowSize>,
 ) {
     depth_texture.resize(device.inner(), size.inner());
+}
+
+//====================================================================
+
+pub struct Gif {
+    pub texture: Texture,
+    pub buffer: wgpu::Buffer,
+}
+
+#[repr(C)]
+#[derive(bytemuck::Pod, bytemuck::Zeroable, Clone, Copy)]
+pub struct GifRawData {
+    pub total_frames: f32,
+    pub width: f32,
+    pub padding: [u32; 2],
+}
+
+impl Gif {
+    pub fn from_frames(device: &wgpu::Device, queue: &wgpu::Queue, frames: Vec<Frame>) -> Self {
+        log::trace!("Compiling gif with {} frames", frames.len());
+
+        let frame_width = frames[0].buffer().width();
+        let frame_height = frames[0].buffer().height();
+
+        let texture_width = frame_width * frames.len() as u32;
+
+        let mut image = DynamicImage::new_rgba8(texture_width, frame_height);
+
+        frames.iter().enumerate().for_each(|(index, frame)| {
+            let mut sub_img =
+                image.sub_image(index as u32 * frame_width, 0, frame_width, frame_height);
+            sub_img.copy_from(frame.buffer(), 0, 0).unwrap();
+        });
+
+        log::trace!(
+            "frame size = ({}, {}), texture width = {}",
+            frame_width,
+            frame_height,
+            texture_width
+        );
+
+        let texture = Texture::from_image(device, queue, &image, None, None);
+
+        let raw_data = GifRawData {
+            total_frames: frames.len() as f32,
+            width: texture_width as f32,
+            padding: [0; 2],
+        };
+
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Gif Bufer"),
+            contents: bytemuck::cast_slice(&[raw_data]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        Self { texture, buffer }
+    }
 }
 
 //====================================================================

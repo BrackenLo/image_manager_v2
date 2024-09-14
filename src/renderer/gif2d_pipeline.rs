@@ -1,14 +1,11 @@
 //====================================================================
 
-use std::collections::HashMap;
-
 use shipyard::Unique;
-
-use crate::storage::TextureID;
+use wgpu::util::DeviceExt;
 
 use super::{
     shared::{RawTextureVertex, TEXTURE_INDICES, TEXTURE_VERTICES},
-    texture::Texture,
+    texture::Gif,
     tools, Vertex,
 };
 
@@ -16,58 +13,55 @@ use super::{
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Zeroable, bytemuck::Pod, Default)]
-pub struct RawGif2dInstance {
+pub struct Gif2dInstanceRaw {
     pub pos: [f32; 2],
     pub size: [f32; 2],
     pub color: [f32; 4],
     pub frame: u32,
-}
-
-impl Vertex for RawGif2dInstance {
-    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![
-            2 => Float32x2,
-            3 => Float32x2,
-            4 => Float32x4,
-            5 => Uint32,
-        ];
-
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<RawGif2dInstance>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &VERTEX_ATTRIBUTES,
-        }
-    }
+    pub padding: [f32; 3],
 }
 
 pub struct Gif2dInstance {
-    instance_buffer: wgpu::Buffer,
-    instance_count: u32,
+    bind_group: wgpu::BindGroup,
+    buffer: wgpu::Buffer,
 
     texture_bind_group: wgpu::BindGroup,
 }
 
 impl Gif2dInstance {
-    pub fn new(device: &wgpu::Device, pipeline: &Gif2dPipeline, texture: &Texture) -> Self {
-        let texture_bind_group = pipeline.load_texture(&device, texture);
-
-        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Gif2d Instance Buffer"),
-            size: 0,
-            usage: wgpu::BufferUsages::VERTEX,
-            mapped_at_creation: false,
+    pub fn new(
+        device: &wgpu::Device,
+        pipeline: &Gif2dPipeline,
+        data: Gif2dInstanceRaw,
+        gif: &Gif,
+    ) -> Self {
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Texture Instance"),
+            contents: bytemuck::cast_slice(&[data]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &pipeline.texture_instance_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
+            }],
+        });
+
+        let texture_bind_group = pipeline.load_texture(&device, gif);
 
         Self {
             texture_bind_group,
-            instance_buffer,
-            instance_count: 0,
+            bind_group,
+            buffer,
         }
     }
 
     #[inline]
-    pub fn update(&self, queue: &wgpu::Queue, data: RawGif2dInstance) {
-        queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&[data]));
+    pub fn update(&self, queue: &wgpu::Queue, data: Gif2dInstanceRaw) {
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[data]));
     }
 }
 
@@ -95,7 +89,7 @@ impl Gif2dPipeline {
     {
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Texture Bind Group Layout"),
+                label: Some("Gif2d Bind Group Layout"),
                 entries: &[
                     tools::bgl_texture_entry(0),
                     tools::bgl_sampler_entry(1),
@@ -105,7 +99,7 @@ impl Gif2dPipeline {
 
         let texture_instance_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Texture Instance Bind Group Layout"),
+                label: Some("Gif2d Instance Bind Group Layout"),
                 entries: &[tools::bgl_uniform_entry(
                     0,
                     wgpu::ShaderStages::VERTEX_FRAGMENT,
@@ -115,7 +109,7 @@ impl Gif2dPipeline {
         let pipeline = tools::create_pipeline(
             &device,
             &config,
-            "Texture Pipeline",
+            "Gif2d Pipeline",
             &[
                 camera_bind_group_layout,
                 &texture_bind_group_layout,
@@ -126,9 +120,9 @@ impl Gif2dPipeline {
             tools::RenderPipelineDescriptor::default().with_depth_stencil(),
         );
 
-        let vertex_buffer = tools::vertex_buffer(&device, "Texture Pipeline", &TEXTURE_VERTICES);
+        let vertex_buffer = tools::vertex_buffer(&device, "Gif2d Pipeline", &TEXTURE_VERTICES);
 
-        let index_buffer = tools::index_buffer(&device, "Texture Pipeline", &TEXTURE_INDICES);
+        let index_buffer = tools::index_buffer(&device, "Gif2d Pipeline", &TEXTURE_INDICES);
         let index_count = TEXTURE_INDICES.len() as u32;
 
         Self {
@@ -141,18 +135,22 @@ impl Gif2dPipeline {
         }
     }
 
-    pub fn load_texture(&self, device: &wgpu::Device, data: &Texture) -> wgpu::BindGroup {
+    pub fn load_texture(&self, device: &wgpu::Device, data: &Gif) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("TextureBindGroup"),
+            label: Some("Gif2dBindGroup"),
             layout: &self.texture_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&data.view),
+                    resource: wgpu::BindingResource::TextureView(&data.texture.view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&data.sampler),
+                    resource: wgpu::BindingResource::Sampler(&data.texture.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(data.buffer.as_entire_buffer_binding()),
                 },
             ],
         })
@@ -162,7 +160,7 @@ impl Gif2dPipeline {
         &self,
         pass: &mut wgpu::RenderPass,
         camera_bind_goup: &wgpu::BindGroup,
-        instances: I,
+        to_render: I,
     ) {
         pass.set_pipeline(&self.pipeline);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -170,21 +168,13 @@ impl Gif2dPipeline {
 
         pass.set_bind_group(0, camera_bind_goup, &[]);
 
-        instances.for_each(|instance| {
-            pass.set_vertex_buffer(1, instance.instance_buffer.slice(..));
-            pass.set_bind_group(1, &instance.texture_bind_group, &[]);
+        to_render.for_each(|to_render| {
+            pass.set_bind_group(1, &to_render.texture_bind_group, &[]);
+            pass.set_bind_group(2, &to_render.bind_group, &[]);
 
-            pass.draw_indexed(0..self.index_count, 0, 0..instance.instance_count);
+            pass.draw_indexed(0..self.index_count, 0, 0..1);
         });
     }
 }
-
-//====================================================================
-
-pub struct Gif2dManager {
-    instances: HashMap<TextureID, Gif2dInstance>,
-}
-
-impl Gif2dManager {}
 
 //====================================================================

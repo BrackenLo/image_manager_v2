@@ -6,7 +6,9 @@ use shipyard::{
 };
 
 use crate::{
-    app::Stages, renderer::texture2d_pipeline::Texture2dInstance, shipyard_tools::Plugin,
+    app::Stages,
+    renderer::{gif2d_pipeline::Gif2dInstance, texture2d_pipeline::Texture2dInstance},
+    shipyard_tools::Plugin,
     tools::Size,
 };
 
@@ -120,6 +122,12 @@ pub struct StandardImage {
 }
 
 #[derive(Component)]
+pub struct GifImage {
+    pub id: u64,
+    pub instance: Gif2dInstance,
+}
+
+#[derive(Component)]
 pub struct ImageIndex {
     pub index: u32,
 }
@@ -178,6 +186,7 @@ pub struct ImageCreator<'v> {
     pub size: ViewMut<'v, ImageSize>,
     pub color: ViewMut<'v, Color>,
     pub std_image: ViewMut<'v, StandardImage>,
+    pub gif_image: ViewMut<'v, GifImage>,
     pub meta: ViewMut<'v, ImageMeta>,
 
     pub dirty: ViewMut<'v, ImageDirty>,
@@ -213,6 +222,29 @@ impl ImageCreator<'_> {
                 &mut self.dirty,
             ),
             (Image, pos, size, color, std_image, meta, ImageDirty),
+        )
+    }
+
+    pub fn spawn_gif(&mut self, gif: GifImage, meta: ImageMeta) -> EntityId {
+        self.entities.add_entity(
+            (
+                &mut self.image,
+                &mut self.pos,
+                &mut self.size,
+                &mut self.color,
+                &mut self.gif_image,
+                &mut self.meta,
+                &mut self.dirty,
+            ),
+            (
+                Image,
+                Pos::default(),
+                ImageSize::default(),
+                Color::default(),
+                gif,
+                meta,
+                ImageDirty,
+            ),
         )
     }
 }

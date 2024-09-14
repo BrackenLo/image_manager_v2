@@ -272,9 +272,9 @@ pub(super) fn activate_events(world: &World) {
         .for_each(|key| world.run_workload(*key).unwrap());
 
     // TODO - log event names instead of IDs
-    if !keys.is_empty() {
-        log::trace!("Triggering events for {:?}", keys);
-    }
+    // if !keys.is_empty() {
+    //     log::trace!("Triggering events for {:?}", keys);
+    // }
 }
 
 //====================================================================

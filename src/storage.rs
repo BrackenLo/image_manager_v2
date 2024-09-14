@@ -13,12 +13,13 @@ use shipyard::{AllStoragesView, IntoWorkload, SystemModificator, Unique, ViewMut
 
 use crate::{
     app::Stages,
-    images::{ImageCreator, ImageIndex, ImageMeta, StandardImage},
+    images::{GifImage, ImageCreator, ImageIndex, ImageMeta, StandardImage},
     layout::LayoutManager,
     renderer::{
+        gif2d_pipeline::{Gif2dInstance, Gif2dInstanceRaw, Gif2dPipeline},
         text_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
-        texture::Texture,
-        texture2d_pipeline::{RawTexture2dInstance, Texture2dInstance, Texture2dPipeline},
+        texture::{Gif, GifRawData, Texture},
+        texture2d_pipeline::{Texture2dInstance, Texture2dInstanceRaw, Texture2dPipeline},
         Device, Queue,
     },
     shipyard_tools::{Event, EventHandler, Plugin, Res, ResMut},
@@ -90,9 +91,14 @@ pub struct Storage {
 }
 
 pub struct TextureData {
-    pub texture: Texture,
+    pub texture: TextureType,
     pub path: PathBuf,
     pub resolution: Size<u32>,
+}
+
+pub enum TextureType {
+    Texture(Texture),
+    Gif(Gif),
 }
 
 //====================================================================
@@ -237,14 +243,15 @@ fn sys_check_pending(storage: Res<Storage>) -> bool {
 }
 
 fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: ResMut<Storage>) {
-    let mut to_process = Vec::new();
+    let mut textures_to_process = Vec::new();
+    let mut gifs_to_process = Vec::new();
 
     loop {
         match storage.image_receiver.try_recv() {
             Ok(image) => match image {
-                ImageChannel::Image(path, image) => to_process.push((path, image)),
+                ImageChannel::Image(path, image) => textures_to_process.push((path, image)),
 
-                ImageChannel::Gif(path, frames) => todo!(),
+                ImageChannel::Gif(path, frames) => gifs_to_process.push((path, frames)),
 
                 ImageChannel::Finished => {
                     storage.loading = false;
@@ -257,10 +264,11 @@ fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: R
         }
     }
 
-    let mut textures = to_process
+    let mut textures = textures_to_process
         .into_iter()
         .map(|(path, image)| {
             let texture = Texture::from_image(device.inner(), queue.inner(), &image, None, None);
+            let texture = TextureType::Texture(texture);
 
             let mut hasher = ahash::AHasher::default();
             path.hash(&mut hasher);
@@ -281,12 +289,46 @@ fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: R
         })
         .collect::<Vec<_>>();
 
+    let mut gifs = gifs_to_process
+        .into_iter()
+        .filter_map(|(path, frames)| {
+            if frames.is_empty() {
+                return None;
+            }
+
+            let buffer = frames[0].buffer();
+            // let image = DynamicImage::from(buffer.clone());
+            // let texture = Texture::from_image(device.inner(), queue.inner(), &image, None, None);
+
+            let mut hasher = ahash::AHasher::default();
+            path.hash(&mut hasher);
+            let key = hasher.finish();
+
+            let resolution = Size::new(buffer.width(), buffer.height());
+
+            let gif = Gif::from_frames(device.inner(), queue.inner(), frames);
+
+            storage.textures.insert(
+                key,
+                TextureData {
+                    texture: TextureType::Gif(gif),
+                    path,
+                    resolution,
+                },
+            );
+
+            Some(key)
+        })
+        .collect::<Vec<_>>();
+
     storage.to_spawn.append(&mut textures);
+    storage.to_spawn.append(&mut gifs);
 }
 
 fn sys_spawn_new_images(
     device: Res<Device>,
     texture_pipeline: Res<Texture2dPipeline>,
+    gif_pipeline: Res<Gif2dPipeline>,
     mut text_pipeline: ResMut<TextPipeline>,
 
     mut storage: ResMut<Storage>,
@@ -299,20 +341,6 @@ fn sys_spawn_new_images(
     storage.to_spawn.iter().for_each(|id| {
         let texture = storage.textures.get(id).unwrap();
 
-        let image = StandardImage {
-            id: *id,
-            instance: Texture2dInstance::new(
-                device.inner(),
-                &texture_pipeline,
-                RawTexture2dInstance {
-                    pos: [0., 0.],
-                    size: [1., 1.],
-                    color: [1., 1., 1., 1.],
-                },
-                &texture.texture,
-            ),
-        };
-
         let index = layout.next();
 
         let meta = ImageMeta {
@@ -320,7 +348,36 @@ fn sys_spawn_new_images(
             aspect: texture.resolution.height as f32 / texture.resolution.width as f32,
         };
 
-        let entity_id = image_creator.spawn_image(image, meta);
+        let entity_id = match &texture.texture {
+            TextureType::Texture(texture) => {
+                let image = StandardImage {
+                    id: *id,
+                    instance: Texture2dInstance::new(
+                        device.inner(),
+                        &texture_pipeline,
+                        Texture2dInstanceRaw::default(),
+                        texture,
+                    ),
+                };
+
+                image_creator.spawn_image(image, meta)
+            }
+
+            TextureType::Gif(gif) => {
+                let gif = GifImage {
+                    id: *id,
+                    instance: Gif2dInstance::new(
+                        device.inner(),
+                        &gif_pipeline,
+                        Gif2dInstanceRaw::default(),
+                        gif,
+                    ),
+                };
+
+                image_creator.spawn_gif(gif, meta)
+            }
+        };
+
         image_creator.entities.add_component(
             entity_id,
             (&mut vm_indexed, &mut vm_text),

@@ -10,13 +10,14 @@ use winit::{event::MouseButton, keyboard::KeyCode};
 use crate::{
     app::Stages,
     images::{
-        Color, ImageCreator, ImageDirtier, ImageDirty, ImageHovered, ImageIndex, ImageMeta,
-        ImageSelected, ImageShown, ImageSize, Pos, StandardImage, ToRemove,
+        Color, GifImage, ImageCreator, ImageDirtier, ImageDirty, ImageHovered, ImageIndex,
+        ImageMeta, ImageSelected, ImageShown, ImageSize, Pos, StandardImage, ToRemove,
     },
     renderer::{
         camera::{Camera, MainCamera},
+        gif2d_pipeline::{Gif2dInstance, Gif2dInstanceRaw, Gif2dPipeline},
         text_pipeline::{TextBuffer, TextPipeline},
-        texture2d_pipeline::{RawTexture2dInstance, Texture2dInstance, Texture2dPipeline},
+        texture2d_pipeline::{Texture2dInstance, Texture2dInstanceRaw, Texture2dPipeline},
         Device, Queue,
     },
     shipyard_tools::{Event, EventHandler, Plugin, Res, ResMut, UniqueTools},
@@ -46,6 +47,7 @@ impl Plugin<Stages> for LayoutPlugin {
                 (
                     sys_order_images,
                     sys_rebuild_images,
+                    sys_rebuild_gifs,
                     sys_reposition_text_dirty,
                 )
                     .into_sequential_workload(),
@@ -234,22 +236,51 @@ fn sys_rebuild_images(
     v_pos: View<Pos>,
     v_size: View<ImageSize>,
     v_color: View<Color>,
-    v_std_image: View<StandardImage>,
+    v_image: View<StandardImage>,
     v_dirty: View<ImageDirty>,
 ) {
     if v_dirty.is_empty() {
         return;
     }
 
-    (&v_pos, &v_size, &v_color, &v_std_image, &v_dirty)
+    (&v_pos, &v_size, &v_color, &v_image, &v_dirty)
         .iter()
         .for_each(|(pos, size, color, image, _)| {
             image.instance.update(
                 queue.inner(),
-                RawTexture2dInstance {
+                Texture2dInstanceRaw {
                     pos: pos.to_array(),
                     size: size.to_array(),
                     color: color.to_array(),
+                },
+            )
+        });
+}
+
+fn sys_rebuild_gifs(
+    queue: Res<Queue>,
+
+    v_pos: View<Pos>,
+    v_size: View<ImageSize>,
+    v_color: View<Color>,
+    v_gif: View<GifImage>,
+    v_dirty: View<ImageDirty>,
+) {
+    if v_dirty.is_empty() {
+        return;
+    }
+
+    (&v_pos, &v_size, &v_color, &v_gif, &v_dirty)
+        .iter()
+        .for_each(|(pos, size, color, gif, _)| {
+            gif.instance.update(
+                queue.inner(),
+                Gif2dInstanceRaw {
+                    pos: pos.to_array(),
+                    size: size.to_array(),
+                    color: color.to_array(),
+                    frame: 0,
+                    padding: [0.; 3],
                 },
             )
         });
@@ -536,7 +567,8 @@ fn sys_select_images(
 fn sys_process_selected(
     events: Res<EventHandler>,
     device: Res<Device>,
-    pipeline: Res<Texture2dPipeline>,
+    texture_pipeline: Res<Texture2dPipeline>,
+    gif_pipeline: Res<Gif2dPipeline>,
     storage: Res<Storage>,
 
     mut image_creator: ImageCreator,
@@ -561,22 +593,40 @@ fn sys_process_selected(
     let original_image = image_creator.std_image.get(id).unwrap();
     let texture = storage.get_texture(original_image.id).unwrap();
 
-    let image = StandardImage {
-        id: original_image.id,
-        instance: Texture2dInstance::new(
-            device.inner(),
-            &pipeline,
-            RawTexture2dInstance::default(),
-            &texture.texture,
-        ),
-    };
-
     let meta = ImageMeta {
         _texture_resolution: texture.resolution,
         aspect: texture.resolution.height as f32 / texture.resolution.width as f32,
     };
 
-    let entity_id = image_creator.spawn_image(image, meta);
+    let entity_id = match &texture.texture {
+        crate::storage::TextureType::Texture(texture) => {
+            let image = StandardImage {
+                id: original_image.id,
+                instance: Texture2dInstance::new(
+                    device.inner(),
+                    &texture_pipeline,
+                    Texture2dInstanceRaw::default(),
+                    &texture,
+                ),
+            };
+
+            image_creator.spawn_image(image, meta)
+        }
+        crate::storage::TextureType::Gif(gif) => {
+            let gif = GifImage {
+                id: original_image.id,
+                instance: Gif2dInstance::new(
+                    device.inner(),
+                    &gif_pipeline,
+                    Gif2dInstanceRaw::default(),
+                    gif,
+                ),
+            };
+
+            image_creator.spawn_gif(gif, meta)
+        }
+    };
+
     image_creator
         .entities
         .add_component(entity_id, &mut vm_shown, ImageShown);

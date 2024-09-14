@@ -3,8 +3,6 @@
 use shipyard::Unique;
 use wgpu::util::DeviceExt;
 
-// use crate::app::entities::Image;
-
 use crate::tools::Rect;
 
 use super::{
@@ -17,7 +15,7 @@ use super::{
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Zeroable, bytemuck::Pod, Default)]
-pub struct RawTexture2dInstance {
+pub struct Texture2dInstanceRaw {
     pub pos: [f32; 2],
     pub size: [f32; 2],
     pub color: [f32; 4],
@@ -34,7 +32,7 @@ impl Texture2dInstance {
     pub fn new(
         device: &wgpu::Device,
         pipeline: &Texture2dPipeline,
-        data: RawTexture2dInstance,
+        data: Texture2dInstanceRaw,
         texture: &Texture,
     ) -> Self {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -62,7 +60,7 @@ impl Texture2dInstance {
     }
 
     #[inline]
-    pub fn update(&self, queue: &wgpu::Queue, data: RawTexture2dInstance) {
+    pub fn update(&self, queue: &wgpu::Queue, data: Texture2dInstanceRaw) {
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[data]));
     }
 }

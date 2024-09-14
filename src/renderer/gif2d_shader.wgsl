@@ -7,8 +7,15 @@ struct Camera {
 }
 
 struct Frames {
-    total_frames: u32,
-    width: u32,
+    total_frames: f32,
+    width: f32,
+}
+
+struct TextureInstance {
+    pos: vec2<f32>,
+    size: vec2<f32>,
+    color: vec4<f32>,
+    frame: u32,
 }
 
 @group(0) @binding(0) var<uniform> camera: Camera;
@@ -17,18 +24,14 @@ struct Frames {
 @group(1) @binding(1) var texture_sampler: sampler;
 @group(1) @binding(2) var<uniform> frames: Frames; 
 
+@group(2) @binding(0) var<uniform> instance: TextureInstance;
+
 //====================================================================
 
 struct VertexIn {
     // Vertex
     @location(0) vertex_position: vec2<f32>,
     @location(1) uv: vec2<f32>,
-
-    // Instance
-    @location(2) pos: vec2<f32>,
-    @location(3) size: vec2<f32>,
-    @location(4) color: vec4<f32>,
-    @location(5) frame: u32,
 }
 
 struct VertexOut {
@@ -44,14 +47,14 @@ fn vs_main(in: VertexIn) -> VertexOut {
     var out: VertexOut;
 
     var vertex_pos = in.vertex_position 
-        * in.size 
-        + in.pos;
+        * instance.size 
+        + instance.pos;
 
     out.clip_position = camera.projection 
         * vec4<f32>(vertex_pos, 2., 1.);
 
     out.uv = in.uv;
-    out.color = in.color;
+    out.color = instance.color;
 
     return out;
 }
@@ -60,11 +63,14 @@ fn vs_main(in: VertexIn) -> VertexOut {
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     
     let div = frames.width / frames.total_frames;
-    let frame_size = div / frames.total_frames;
+    let frame_size = div / frames.width;
 
+    let frame = bitcast<f32>(instance.frame);
 
-    let tex_color = textureSample(texture, texture_sampler, in.uv);
-    
+    let uv = in.uv * frame_size + frame * frame_size;
+    let tex_color = textureSample(texture, texture_sampler, uv);
+
+    // let tex_color = textureSample(texture, texture_sampler, in.uv);
     return tex_color * in.color;
 }
 

@@ -4,6 +4,7 @@ use camera::{
     sys_resize_camera, sys_setup_camera, sys_update_camera, Camera, MainCamera, UiCamera,
 };
 use circle_pipeline::{sys_update_circle_pipeline, CirclePipeline};
+use gif2d_pipeline::Gif2dPipeline;
 use pollster::FutureExt;
 use shipyard::{AllStoragesView, IntoIter, IntoWorkload, Unique, View};
 use text_pipeline::{
@@ -15,7 +16,7 @@ use texture2d_pipeline::Texture2dPipeline;
 
 use crate::{
     app::Stages,
-    images::{ImageShown, StandardImage},
+    images::{GifImage, ImageShown, StandardImage},
     shipyard_tools::{Plugin, Res, ResMut, UniqueTools},
     tools::Size,
     window::{ResizeEvent, WindowSize},
@@ -70,7 +71,18 @@ impl Plugin<Stages> for RendererPlugin {
                 )
                     .into_workload(),
             )
-            .add_workload(Stages::Render, (sys_render).into_workload())
+            .add_workload(Stages::PreRender, (sys_setup_render_pass).into_workload())
+            .add_workload(
+                Stages::Render,
+                (
+                    sys_render_circles,
+                    sys_render_textures,
+                    sys_render_gifs,
+                    sys_finish_pass,
+                    sys_render_text,
+                )
+                    .into_sequential_workload(),
+            )
             .add_workload(Stages::PostRender, (sys_trim_text_pipeline).into_workload())
             .add_event::<ResizeEvent>(
                 (
@@ -230,75 +242,123 @@ fn sys_setup_pipelines(
     config: Res<SurfaceConfig>,
     camera: Res<Camera<MainCamera>>,
 ) {
-    let texture_pipeline =
-        Texture2dPipeline::new(device.inner(), config.inner(), camera.bind_group_layout());
-    let circle_pipeline =
-        CirclePipeline::new(device.inner(), config.inner(), camera.bind_group_layout());
-
     all_storages
-        .insert(texture_pipeline)
-        .insert(circle_pipeline);
+        .insert(Texture2dPipeline::new(
+            device.inner(),
+            config.inner(),
+            camera.bind_group_layout(),
+        ))
+        .insert(CirclePipeline::new(
+            device.inner(),
+            config.inner(),
+            camera.bind_group_layout(),
+        ))
+        .insert(Gif2dPipeline::new(
+            device.inner(),
+            config.inner(),
+            camera.bind_group_layout(),
+        ));
 }
 
 fn sys_setup_misc(all_storages: AllStoragesView) {
     all_storages.add_unique(ClearColor::default());
 }
 
-fn sys_render(
+fn sys_setup_render_pass(
+    all_storages: AllStoragesView,
     mut tools: ResMut<RenderPassTools>,
     clear_color: Res<ClearColor>,
     depth: Res<DepthTexture>,
+) {
+    let pass = tools
+        .render_pass_desc(RenderPassToolsDesc {
+            use_depth: Some(&depth.main_texture().view),
+            clear_color: Some(clear_color.to_array()),
+        })
+        .forget_lifetime();
 
-    text_pipeline: Res<TextPipeline>,
-    texture_pipeline: Res<Texture2dPipeline>,
+    all_storages.add_unique(RenderPass { pass });
+}
+
+fn sys_render_circles(
+    mut pass: ResMut<RenderPass>,
     circle_pipeline: Res<CirclePipeline>,
+    main_camera: Res<Camera<MainCamera>>,
+) {
+    circle_pipeline.render(&mut pass.pass, &main_camera.bind_group());
+}
+
+fn sys_render_textures(
+    mut pass: ResMut<RenderPass>,
+    texture_pipeline: Res<Texture2dPipeline>,
 
     main_camera: Res<Camera<MainCamera>>,
     ui_camera: Res<Camera<UiCamera>>,
+
     v_images: View<StandardImage>,
     v_shown: View<ImageShown>,
 ) {
-    {
-        let desc = RenderPassToolsDesc {
-            use_depth: Some(&depth.main_texture().view),
-            clear_color: Some(clear_color.to_array()),
-        };
+    let images = (&v_images, !&v_shown)
+        .iter()
+        .map(|(image, _)| &image.instance);
 
-        let mut pass = tools.render_pass_desc(desc);
+    texture_pipeline.render(
+        &mut pass.pass,
+        &main_camera.bind_group(),
+        images.into_iter(),
+        // Some(viewport.inner()), // BUG - fix viewport not working with world space
+        None,
+    );
 
-        let images = (&v_images, !&v_shown)
+    if !v_shown.is_empty() {
+        let images = (&v_images, &v_shown)
             .iter()
             .map(|(image, _)| &image.instance);
 
         texture_pipeline.render(
-            &mut pass,
-            &main_camera.bind_group(),
+            &mut pass.pass,
+            &ui_camera.bind_group(),
             images.into_iter(),
             // Some(viewport.inner()), // BUG - fix viewport not working with world space
             None,
         );
-
-        if !v_shown.is_empty() {
-            let images = (&v_images, &v_shown)
-                .iter()
-                .map(|(image, _)| &image.instance);
-
-            texture_pipeline.render(
-                &mut pass,
-                &ui_camera.bind_group(),
-                images.into_iter(),
-                // Some(viewport.inner()), // BUG - fix viewport not working with world space
-                None,
-            );
-        }
-
-        circle_pipeline.render(&mut pass, &main_camera.bind_group());
     }
+}
 
-    {
-        let mut pass = tools.render_pass_desc(RenderPassToolsDesc::none());
-        text_pipeline.render(&mut pass);
+fn sys_render_gifs(
+    mut pass: ResMut<RenderPass>,
+    gif_pipeline: Res<Gif2dPipeline>,
+
+    main_camera: Res<Camera<MainCamera>>,
+    ui_camera: Res<Camera<UiCamera>>,
+
+    v_gifs: View<GifImage>,
+    v_shown: View<ImageShown>,
+) {
+    let images = (&v_gifs, !&v_shown)
+        .iter()
+        .map(|(image, _)| &image.instance);
+
+    gif_pipeline.render(
+        &mut pass.pass,
+        &main_camera.bind_group(),
+        images.into_iter(),
+    );
+
+    if !v_shown.is_empty() {
+        let images = (&v_gifs, &v_shown).iter().map(|(image, _)| &image.instance);
+
+        gif_pipeline.render(&mut pass.pass, &ui_camera.bind_group(), images.into_iter());
     }
+}
+
+fn sys_finish_pass(all_storages: AllStoragesView) {
+    all_storages.remove_unique::<RenderPass>().ok();
+}
+
+fn sys_render_text(mut tools: ResMut<RenderPassTools>, text_pipeline: Res<TextPipeline>) {
+    let mut pass = tools.render_pass_desc(RenderPassToolsDesc::none());
+    text_pipeline.render(&mut pass);
 }
 
 fn sys_resize(
@@ -334,6 +394,11 @@ impl Default for RenderPassToolsDesc<'_> {
             clear_color: Some([0.2, 0.2, 0.2, 1.]),
         }
     }
+}
+
+#[derive(Unique)]
+pub struct RenderPass {
+    pass: wgpu::RenderPass<'static>,
 }
 
 #[derive(Unique)]
