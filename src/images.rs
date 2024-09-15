@@ -133,6 +133,7 @@ pub struct GifImage {
 #[derive(Component)]
 pub struct GifTimer {
     pub acc: Duration,
+    pub fps: Duration,
 }
 
 #[derive(Component)]
@@ -254,6 +255,7 @@ impl ImageCreator<'_> {
                 gif,
                 GifTimer {
                     acc: Duration::default(),
+                    fps: Duration::from_secs_f32(0.5),
                 },
                 meta,
                 ImageDirty,

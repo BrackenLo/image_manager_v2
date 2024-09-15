@@ -1,7 +1,5 @@
 //====================================================================
 
-use std::time::Duration;
-
 use glyphon::Metrics;
 use shipyard::{
     AllStoragesView, EntitiesView, EntityId, Get, IntoIter, IntoWithId, IntoWorkload, Remove,
@@ -283,7 +281,7 @@ fn sys_rebuild_gifs(
                     size: size.to_array(),
                     color: color.to_array(),
                     frame: gif.frame as f32,
-                    padding: [0.; 3],
+                    padding: [0; 3],
                 },
             )
         });
@@ -302,11 +300,9 @@ fn sys_tick_gifs(
         .for_each(|(id, (gif, timer))| {
             timer.acc += *time.delta();
 
-            if timer.acc.as_secs_f32() > 0.6 {
-                timer.acc -= Duration::from_secs_f32(0.6);
+            if timer.acc > timer.fps {
+                timer.acc -= timer.fps;
                 gif.frame += 1;
-                // gif.frame = 6;
-
                 entities.add_component(id, &mut vm_dirty, ImageDirty);
             }
         });

@@ -18,7 +18,7 @@ pub struct Gif2dInstanceRaw {
     pub size: [f32; 2],
     pub color: [f32; 4],
     pub frame: f32,
-    pub padding: [f32; 3],
+    pub padding: [u32; 3],
 }
 
 pub struct Gif2dInstance {

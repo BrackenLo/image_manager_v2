@@ -8,7 +8,9 @@ use std::{
 
 use ahash::AHashMap;
 use crossbeam_channel::{Receiver, Sender};
-use image::{codecs::gif::GifDecoder, AnimationDecoder, DynamicImage, GenericImageView};
+use image::{
+    codecs::gif::GifDecoder, AnimationDecoder, DynamicImage, GenericImage, GenericImageView,
+};
 use shipyard::{AllStoragesView, IntoWorkload, SystemModificator, Unique, ViewMut, Workload};
 
 use crate::{
@@ -18,7 +20,7 @@ use crate::{
     renderer::{
         gif2d_pipeline::{Gif2dInstance, Gif2dInstanceRaw, Gif2dPipeline},
         text_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
-        texture::{Gif, Texture},
+        texture::{Gif, Texture, MAX_TEXTURE_HEIGHT, MAX_TEXTURE_WIDTH},
         texture2d_pipeline::{Texture2dInstance, Texture2dInstanceRaw, Texture2dPipeline},
         Device, Queue,
     },
@@ -106,7 +108,14 @@ pub enum TextureType {
 enum ImageChannel {
     Finished,
     Image(PathBuf, DynamicImage),
-    Gif(PathBuf, Vec<image::Frame>),
+    Gif {
+        path: PathBuf,
+        image: DynamicImage,
+        total_frames: u32,
+        frames_per_row: u32,
+        total_rows: u32,
+        frame_size: (u32, u32),
+    }, // Gif(PathBuf, Vec<image::Frame>),
 }
 
 impl Storage {
@@ -202,13 +211,9 @@ fn load_images(
                 }
 
                 Some("gif") => {
-                    let file = std::fs::File::open(to_load.clone()).unwrap();
-                    let reader = std::io::BufReader::new(file);
-                    let gif = GifDecoder::new(reader).unwrap();
-                    let frames = gif.into_frames();
-                    let frames = frames.collect_frames().unwrap();
+                    load_gif(to_load).unwrap()
 
-                    ImageChannel::Gif(to_load, frames)
+                    // ImageChannel::Gif(to_load, frames)
                 }
 
                 _ => continue,
@@ -220,10 +225,10 @@ fn load_images(
             return;
         }
 
-        if let ImageChannel::Image(buf, _) | ImageChannel::Gif(buf, _) = &data {
+        if let ImageChannel::Image(path, _) | ImageChannel::Gif { path, .. } = &data {
             log::trace!(
                 "Loaded image {:?}",
-                &buf.file_name().unwrap_or(&buf.as_os_str())
+                &path.file_name().unwrap_or(&path.as_os_str())
             );
         }
 
@@ -232,6 +237,86 @@ fn load_images(
 
     log::info!("Finished loading images");
     image_sender.send(ImageChannel::Finished).unwrap();
+}
+
+fn load_gif(path: PathBuf) -> Option<ImageChannel> {
+    let file = std::fs::File::open(path.clone()).ok()?;
+    let reader = std::io::BufReader::new(file);
+    let gif = GifDecoder::new(reader).unwrap();
+
+    let frames = gif.into_frames().collect_frames().ok()?;
+
+    if frames.is_empty() {
+        return None;
+    }
+
+    let frame_width = frames[0].buffer().width();
+    let frame_height = frames[0].buffer().height();
+
+    let frames_per_row = MAX_TEXTURE_WIDTH / frame_width;
+    let total_rows = frames.len() as u32 / frames_per_row + 1; // TODO
+
+    let texture_width = frame_width * frames_per_row;
+    let texture_height = frame_height * total_rows;
+
+    log::trace!(
+            "Processing gif {:?}. Frame Size: ({}, {}), Frames per row: {}, Total Rows: {}, Texture Size: ({}, {})",
+            path.file_name(),
+            frame_width,
+            frame_height,
+            frames_per_row,
+            total_rows,
+            texture_width,
+            texture_height
+        );
+
+    let data = match texture_height > MAX_TEXTURE_HEIGHT {
+        true => {
+            log::warn!(
+                "Failed to load gif with size ({}, {}) (too large or too many frames)",
+                frame_width,
+                frame_height
+            );
+
+            let image = DynamicImage::from(frames[0].buffer().clone());
+
+            ImageChannel::Gif {
+                path,
+                image,
+                total_frames: 1,
+                frames_per_row: 1,
+                total_rows: 1,
+                frame_size: (frame_width, frame_height),
+            }
+        }
+        false => {
+            //
+
+            let mut image = DynamicImage::new_rgba8(texture_width, texture_height);
+
+            frames.iter().enumerate().for_each(|(index, frame)| {
+                let mut sub_img = image.sub_image(
+                    index as u32 % frames_per_row * frame_width,
+                    index as u32 / frames_per_row * frame_height,
+                    frame_width,
+                    frame_height,
+                );
+
+                sub_img.copy_from(frame.buffer(), 0, 0).unwrap();
+            });
+
+            ImageChannel::Gif {
+                path,
+                image,
+                total_frames: frames.len() as u32,
+                frames_per_row,
+                total_rows,
+                frame_size: (frame_width, frame_height),
+            }
+        }
+    };
+
+    Some(data)
 }
 
 fn sys_check_loading(storage: Res<Storage>) -> bool {
@@ -243,84 +328,79 @@ fn sys_check_pending(storage: Res<Storage>) -> bool {
 }
 
 fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: ResMut<Storage>) {
-    let mut textures_to_process = Vec::new();
-    let mut gifs_to_process = Vec::new();
-
     loop {
-        match storage.image_receiver.try_recv() {
-            Ok(image) => match image {
-                ImageChannel::Image(path, image) => textures_to_process.push((path, image)),
+        let mut hasher = ahash::AHasher::default();
 
-                ImageChannel::Gif(path, frames) => gifs_to_process.push((path, frames)),
+        let texture_data = match storage.image_receiver.try_recv() {
+            Ok(image) => match image {
+                ImageChannel::Image(path, image) => {
+                    let texture =
+                        Texture::from_image(device.inner(), queue.inner(), &image, None, None);
+
+                    let resolution = image.dimensions().into();
+
+                    path.hash(&mut hasher);
+
+                    Some(TextureData {
+                        texture: TextureType::Texture(texture),
+                        path,
+                        resolution,
+                    })
+                }
+
+                ImageChannel::Gif {
+                    path,
+                    image,
+                    total_frames,
+                    frames_per_row,
+                    total_rows,
+                    frame_size,
+                } => {
+                    path.hash(&mut hasher);
+
+                    let resolution = Size::new(frame_size.0, frame_size.1);
+
+                    let gif = Gif::new(
+                        device.inner(),
+                        queue.inner(),
+                        path.file_name()
+                            .unwrap_or(path.as_os_str())
+                            .to_str()
+                            .unwrap(),
+                        image,
+                        total_frames,
+                        frames_per_row,
+                        total_rows,
+                        frame_size.0,
+                        frame_size.1,
+                    );
+
+                    Some(TextureData {
+                        texture: TextureType::Gif(gif),
+                        path,
+                        resolution,
+                    })
+                }
 
                 ImageChannel::Finished => {
                     storage.loading = false;
+                    None
                 }
             },
             Err(e) => match e {
                 crossbeam_channel::TryRecvError::Empty => break,
                 e => panic!("{}", e),
             },
+        };
+
+        if let Some(texture_data) = texture_data {
+            let key = hasher.finish();
+
+            storage.textures.insert(key, texture_data);
+
+            storage.to_spawn.push(key);
         }
     }
-
-    let mut textures = textures_to_process
-        .into_iter()
-        .map(|(path, image)| {
-            let texture = Texture::from_image(device.inner(), queue.inner(), &image, None, None);
-            let texture = TextureType::Texture(texture);
-
-            let mut hasher = ahash::AHasher::default();
-            path.hash(&mut hasher);
-            let key = hasher.finish();
-
-            let resolution = image.dimensions().into();
-
-            storage.textures.insert(
-                key,
-                TextureData {
-                    texture,
-                    path,
-                    resolution,
-                },
-            );
-
-            key
-        })
-        .collect::<Vec<_>>();
-
-    let mut gifs = gifs_to_process
-        .into_iter()
-        .filter_map(|(path, frames)| {
-            if frames.is_empty() {
-                return None;
-            }
-
-            let mut hasher = ahash::AHasher::default();
-            path.hash(&mut hasher);
-            let key = hasher.finish();
-
-            let buffer = frames[0].buffer();
-            let resolution = Size::new(buffer.width(), buffer.height());
-
-            // TODO - Turn this into an async job
-            let gif = Gif::from_frames(device.inner(), queue.inner(), frames);
-
-            storage.textures.insert(
-                key,
-                TextureData {
-                    texture: TextureType::Gif(gif),
-                    path,
-                    resolution,
-                },
-            );
-
-            Some(key)
-        })
-        .collect::<Vec<_>>();
-
-    storage.to_spawn.append(&mut textures);
-    storage.to_spawn.append(&mut gifs);
 }
 
 fn sys_spawn_new_images(

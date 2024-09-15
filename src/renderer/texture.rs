@@ -75,11 +75,43 @@ pub struct GifRawData {
 
     pub frame_width: f32,
     pub frame_height: f32,
-    padding: [u32; 2],
+    padding: [u32; 3],
 }
 
 impl Gif {
-    pub fn from_frames(device: &wgpu::Device, queue: &wgpu::Queue, frames: Vec<Frame>) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        label: &str,
+
+        image: DynamicImage,
+        total_frames: u32,
+        frames_per_row: u32,
+        total_rows: u32,
+        frame_width: u32,
+        frame_height: u32,
+    ) -> Self {
+        let texture = Texture::from_image(device, queue, &image, None, None);
+
+        let raw_data = GifRawData {
+            total_frames: total_frames as f32,
+            frames_per_row: frames_per_row as f32,
+            total_rows: total_rows as f32,
+            frame_width: frame_width as f32,
+            frame_height: frame_height as f32,
+            padding: [0; 3],
+        };
+
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("{} gif buffer", label)),
+            contents: bytemuck::cast_slice(&[raw_data]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        Self { texture, buffer }
+    }
+
+    pub fn _from_frames(device: &wgpu::Device, queue: &wgpu::Queue, frames: Vec<Frame>) -> Self {
         log::trace!("Compiling gif with {} frames", frames.len());
 
         let frame_width = frames[0].buffer().width();
@@ -144,7 +176,7 @@ impl Gif {
             total_rows: total_rows as f32,
             frame_width: frame_width as f32,
             frame_height: frame_height as f32,
-            padding: [0; 2],
+            padding: [0; 3],
         };
 
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
