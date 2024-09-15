@@ -1,5 +1,7 @@
 //====================================================================
 
+use std::time::Duration;
+
 use shipyard::{
     AllStoragesViewMut, Borrow, BorrowInfo, Component, EntitiesViewMut, EntityId, IntoIter,
     IntoWithId, IntoWorkload, View, ViewMut,
@@ -124,7 +126,13 @@ pub struct StandardImage {
 #[derive(Component)]
 pub struct GifImage {
     pub id: u64,
+    pub frame: u32,
     pub instance: Gif2dInstance,
+}
+
+#[derive(Component)]
+pub struct GifTimer {
+    pub acc: Duration,
 }
 
 #[derive(Component)]
@@ -189,6 +197,7 @@ pub struct ImageCreator<'v> {
     pub gif_image: ViewMut<'v, GifImage>,
     pub meta: ViewMut<'v, ImageMeta>,
 
+    pub gif_timer: ViewMut<'v, GifTimer>,
     pub dirty: ViewMut<'v, ImageDirty>,
 }
 
@@ -233,6 +242,7 @@ impl ImageCreator<'_> {
                 &mut self.size,
                 &mut self.color,
                 &mut self.gif_image,
+                &mut self.gif_timer,
                 &mut self.meta,
                 &mut self.dirty,
             ),
@@ -242,6 +252,9 @@ impl ImageCreator<'_> {
                 ImageSize::default(),
                 Color::default(),
                 gif,
+                GifTimer {
+                    acc: Duration::default(),
+                },
                 meta,
                 ImageDirty,
             ),

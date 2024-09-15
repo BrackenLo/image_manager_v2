@@ -18,7 +18,7 @@ use crate::{
     renderer::{
         gif2d_pipeline::{Gif2dInstance, Gif2dInstanceRaw, Gif2dPipeline},
         text_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
-        texture::{Gif, GifRawData, Texture},
+        texture::{Gif, Texture},
         texture2d_pipeline::{Texture2dInstance, Texture2dInstanceRaw, Texture2dPipeline},
         Device, Queue,
     },
@@ -296,16 +296,14 @@ fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: R
                 return None;
             }
 
-            let buffer = frames[0].buffer();
-            // let image = DynamicImage::from(buffer.clone());
-            // let texture = Texture::from_image(device.inner(), queue.inner(), &image, None, None);
-
             let mut hasher = ahash::AHasher::default();
             path.hash(&mut hasher);
             let key = hasher.finish();
 
+            let buffer = frames[0].buffer();
             let resolution = Size::new(buffer.width(), buffer.height());
 
+            // TODO - Turn this into an async job
             let gif = Gif::from_frames(device.inner(), queue.inner(), frames);
 
             storage.textures.insert(
@@ -366,6 +364,7 @@ fn sys_spawn_new_images(
             TextureType::Gif(gif) => {
                 let gif = GifImage {
                     id: *id,
+                    frame: 0,
                     instance: Gif2dInstance::new(
                         device.inner(),
                         &gif_pipeline,

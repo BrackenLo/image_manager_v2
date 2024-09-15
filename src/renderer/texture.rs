@@ -14,6 +14,11 @@ use super::Device;
 
 //====================================================================
 
+pub const MAX_TEXTURE_WIDTH: u32 = 8192;
+pub const MAX_TEXTURE_HEIGHT: u32 = 8192;
+
+//====================================================================
+
 #[derive(Unique)]
 pub struct DepthTexture {
     // Main Depth texture
@@ -65,8 +70,12 @@ pub struct Gif {
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Clone, Copy)]
 pub struct GifRawData {
     pub total_frames: f32,
-    pub width: f32,
-    pub padding: [u32; 2],
+    pub frames_per_row: f32,
+    pub total_rows: f32,
+
+    pub frame_width: f32,
+    pub frame_height: f32,
+    padding: [u32; 2],
 }
 
 impl Gif {
@@ -76,28 +85,65 @@ impl Gif {
         let frame_width = frames[0].buffer().width();
         let frame_height = frames[0].buffer().height();
 
-        let texture_width = frame_width * frames.len() as u32;
+        let frames_per_row = MAX_TEXTURE_WIDTH / frame_width;
+        let total_rows = frames.len() as u32 / frames_per_row + 1;
 
-        let mut image = DynamicImage::new_rgba8(texture_width, frame_height);
-
-        frames.iter().enumerate().for_each(|(index, frame)| {
-            let mut sub_img =
-                image.sub_image(index as u32 * frame_width, 0, frame_width, frame_height);
-            sub_img.copy_from(frame.buffer(), 0, 0).unwrap();
-        });
+        let texture_width = frame_width * frames_per_row;
+        let texture_height = frame_height * total_rows;
 
         log::trace!(
-            "frame size = ({}, {}), texture width = {}",
+            // "Frames per row {}, toal rows {}, size: ({}, {})",
+            "Frame Size: ({}, {}), Frames per row: {}, Total Rows: {}, Texture Size: ({}, {})",
             frame_width,
             frame_height,
-            texture_width
+            frames_per_row,
+            total_rows,
+            texture_width,
+            texture_height
         );
 
-        let texture = Texture::from_image(device, queue, &image, None, None);
+        let texture = match texture_height > MAX_TEXTURE_HEIGHT {
+            true => {
+                log::warn!(
+                    "Failed to load gif with size ({}, {}) (too large or too many frames)",
+                    frame_width,
+                    frame_height
+                );
+
+                let image = DynamicImage::from(frames[0].buffer().clone());
+                Texture::from_image(device, queue, &image, None, None)
+            }
+
+            false => {
+                let mut image = DynamicImage::new_rgba8(texture_width, texture_height);
+
+                frames.iter().enumerate().for_each(|(index, frame)| {
+                    let mut sub_img = image.sub_image(
+                        index as u32 % frames_per_row * frame_width,
+                        index as u32 / frames_per_row * frame_height,
+                        frame_width,
+                        frame_height,
+                    );
+
+                    sub_img.copy_from(frame.buffer(), 0, 0).unwrap();
+                });
+
+                Texture::from_image(
+                    device,
+                    queue,
+                    &image,
+                    Some(&format!("Gif Texture {}x{}", texture_width, texture_height)),
+                    None,
+                )
+            }
+        };
 
         let raw_data = GifRawData {
             total_frames: frames.len() as f32,
-            width: texture_width as f32,
+            frames_per_row: frames_per_row as f32,
+            total_rows: total_rows as f32,
+            frame_width: frame_width as f32,
+            frame_height: frame_height as f32,
             padding: [0; 2],
         };
 

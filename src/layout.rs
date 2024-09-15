@@ -1,5 +1,7 @@
 //====================================================================
 
+use std::time::Duration;
+
 use glyphon::Metrics;
 use shipyard::{
     AllStoragesView, EntitiesView, EntityId, Get, IntoIter, IntoWithId, IntoWorkload, Remove,
@@ -10,8 +12,8 @@ use winit::{event::MouseButton, keyboard::KeyCode};
 use crate::{
     app::Stages,
     images::{
-        Color, GifImage, ImageCreator, ImageDirtier, ImageDirty, ImageHovered, ImageIndex,
-        ImageMeta, ImageSelected, ImageShown, ImageSize, Pos, StandardImage, ToRemove,
+        Color, GifImage, GifTimer, ImageCreator, ImageDirtier, ImageDirty, ImageHovered,
+        ImageIndex, ImageMeta, ImageSelected, ImageShown, ImageSize, Pos, StandardImage, ToRemove,
     },
     renderer::{
         camera::{Camera, MainCamera},
@@ -47,6 +49,7 @@ impl Plugin<Stages> for LayoutPlugin {
                 (
                     sys_order_images,
                     sys_rebuild_images,
+                    sys_tick_gifs,
                     sys_rebuild_gifs,
                     sys_reposition_text_dirty,
                 )
@@ -279,10 +282,33 @@ fn sys_rebuild_gifs(
                     pos: pos.to_array(),
                     size: size.to_array(),
                     color: color.to_array(),
-                    frame: 0,
+                    frame: gif.frame as f32,
                     padding: [0.; 3],
                 },
             )
+        });
+}
+
+fn sys_tick_gifs(
+    entities: EntitiesView,
+    time: Res<Time>,
+    mut vm_gif: ViewMut<GifImage>,
+    mut vm_gif_timer: ViewMut<GifTimer>,
+    mut vm_dirty: ViewMut<ImageDirty>,
+) {
+    (&mut vm_gif, &mut vm_gif_timer)
+        .iter()
+        .with_id()
+        .for_each(|(id, (gif, timer))| {
+            timer.acc += *time.delta();
+
+            if timer.acc.as_secs_f32() > 0.6 {
+                timer.acc -= Duration::from_secs_f32(0.6);
+                gif.frame += 1;
+                // gif.frame = 6;
+
+                entities.add_component(id, &mut vm_dirty, ImageDirty);
+            }
         });
 }
 
@@ -615,6 +641,7 @@ fn sys_process_selected(
         crate::storage::TextureType::Gif(gif) => {
             let gif = GifImage {
                 id: original_image.id,
+                frame: 0,
                 instance: Gif2dInstance::new(
                     device.inner(),
                     &gif_pipeline,
