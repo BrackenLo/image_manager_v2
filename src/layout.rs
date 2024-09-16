@@ -294,10 +294,6 @@ fn sys_tick_gifs(
     mut vm_gif: ViewMut<GifImage>,
     mut vm_gif_timer: ViewMut<GifTimer>,
     mut vm_dirty: ViewMut<ImageDirty>,
-
-    storage: Res<Storage>,
-    mut text_pipeline: ResMut<TextPipeline>,
-    mut vm_text: ViewMut<TextBuffer>,
 ) {
     (&mut vm_gif, &mut vm_gif_timer)
         .iter()
@@ -305,21 +301,16 @@ fn sys_tick_gifs(
         .for_each(|(id, (gif, timer))| {
             timer.acc += *time.delta();
 
-            if timer.acc > timer.fps {
-                timer.acc -= timer.fps;
+            let delay = timer.delay[gif.frame as usize];
+
+            if timer.acc > delay {
+                timer.acc = std::time::Duration::ZERO;
                 gif.frame = gif.frame + 1;
                 if gif.frame >= gif.total_frames {
                     gif.frame = 0;
                 }
 
                 entities.add_component(id, &mut vm_dirty, ImageDirty);
-
-                if let Ok(mut text) = (&mut vm_text).get(id) {
-                    let data = storage.get_texture(gif.id).unwrap();
-                    let name = data.path.file_name().unwrap().to_str().unwrap();
-
-                    text.set_text(&mut text_pipeline, &format!("{} frame {}", name, gif.frame));
-                }
             }
         });
 }
@@ -650,7 +641,7 @@ fn sys_process_selected(
 
             image_creator.spawn_image(image, meta)
         }
-        crate::storage::TextureType::Gif(gif) => {
+        crate::storage::TextureType::Gif { gif, frames } => {
             let gif = GifImage {
                 id: original_image.id,
                 frame: 0,
@@ -664,7 +655,7 @@ fn sys_process_selected(
                 ),
             };
 
-            image_creator.spawn_gif(gif, meta)
+            image_creator.spawn_gif(gif, frames.clone(), meta)
         }
     };
 

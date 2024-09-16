@@ -205,7 +205,7 @@ impl Gif {
 //====================================================================
 
 pub struct Texture {
-    pub texture: wgpu::Texture,
+    pub _texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
 }
@@ -252,7 +252,7 @@ impl Texture {
         });
 
         Self {
-            texture,
+            _texture: texture,
             view,
             sampler,
         }
@@ -349,7 +349,7 @@ impl Texture {
         let sampler = device.create_sampler(sampler.unwrap_or(&wgpu::SamplerDescriptor::default()));
 
         Self {
-            texture,
+            _texture: texture,
             view,
             sampler,
         }

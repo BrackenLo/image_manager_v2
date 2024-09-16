@@ -135,7 +135,7 @@ pub struct GifImage {
 #[derive(Component)]
 pub struct GifTimer {
     pub acc: Duration,
-    pub fps: Duration,
+    pub delay: Vec<Duration>,
 }
 
 #[derive(Component)]
@@ -237,7 +237,12 @@ impl ImageCreator<'_> {
         )
     }
 
-    pub fn spawn_gif(&mut self, gif: GifImage, meta: ImageMeta) -> EntityId {
+    pub fn spawn_gif(
+        &mut self,
+        gif: GifImage,
+        frame_delay: Vec<Duration>,
+        meta: ImageMeta,
+    ) -> EntityId {
         self.entities.add_entity(
             (
                 &mut self.image,
@@ -257,7 +262,7 @@ impl ImageCreator<'_> {
                 gif,
                 GifTimer {
                     acc: Duration::default(),
-                    fps: Duration::from_secs_f32(0.08),
+                    delay: frame_delay,
                 },
                 meta,
                 ImageDirty,

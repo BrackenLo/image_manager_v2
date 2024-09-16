@@ -4,6 +4,7 @@ use std::{
     env,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use ahash::AHashMap;
@@ -85,7 +86,7 @@ pub struct Storage {
     loading: bool,
     to_spawn: Vec<TextureID>,
 
-    load_kill_sender: Sender<bool>,
+    _load_kill_sender: Sender<bool>,
     load_kill_receiver: Receiver<bool>,
 
     image_sender: Sender<ImageChannel>,
@@ -100,7 +101,7 @@ pub struct TextureData {
 
 pub enum TextureType {
     Texture(Texture),
-    Gif(Gif),
+    Gif { gif: Gif, frames: Vec<Duration> },
 }
 
 //====================================================================
@@ -115,6 +116,7 @@ enum ImageChannel {
         frames_per_row: u32,
         total_rows: u32,
         frame_size: (u32, u32),
+        frame_delay: Vec<Duration>,
     }, // Gif(PathBuf, Vec<image::Frame>),
 }
 
@@ -130,7 +132,7 @@ impl Storage {
             loading: false,
             to_spawn: Vec::new(),
 
-            load_kill_sender,
+            _load_kill_sender: load_kill_sender,
             load_kill_receiver,
             image_sender,
             image_receiver,
@@ -138,7 +140,7 @@ impl Storage {
     }
 
     pub fn _stop_loading(&mut self) {
-        self.load_kill_sender.send(true).ok();
+        self._load_kill_sender.send(true).ok();
         self.loading = false;
     }
 
@@ -288,6 +290,7 @@ fn load_gif(path: PathBuf) -> Option<ImageChannel> {
                 frames_per_row: 1,
                 total_rows: 1,
                 frame_size: (frame_width, frame_height),
+                frame_delay: vec![Duration::from_secs(99999)],
             }
         }
         false => {
@@ -295,16 +298,25 @@ fn load_gif(path: PathBuf) -> Option<ImageChannel> {
 
             let mut image = DynamicImage::new_rgba8(texture_width, texture_height);
 
-            frames.iter().enumerate().for_each(|(index, frame)| {
-                let mut sub_img = image.sub_image(
-                    index as u32 % frames_per_row * frame_width,
-                    index as u32 / frames_per_row * frame_height,
-                    frame_width,
-                    frame_height,
-                );
+            let frame_delay = frames
+                .iter()
+                .enumerate()
+                .map(|(index, frame)| {
+                    let mut sub_img = image.sub_image(
+                        index as u32 % frames_per_row * frame_width,
+                        index as u32 / frames_per_row * frame_height,
+                        frame_width,
+                        frame_height,
+                    );
 
-                sub_img.copy_from(frame.buffer(), 0, 0).unwrap();
-            });
+                    sub_img.copy_from(frame.buffer(), 0, 0).unwrap();
+
+                    let millis = frame.delay().numer_denom_ms().0;
+                    let delay = Duration::from_millis(millis as u64);
+
+                    delay
+                })
+                .collect::<Vec<_>>();
 
             ImageChannel::Gif {
                 path,
@@ -313,6 +325,7 @@ fn load_gif(path: PathBuf) -> Option<ImageChannel> {
                 frames_per_row,
                 total_rows,
                 frame_size: (frame_width, frame_height),
+                frame_delay,
             }
         }
     };
@@ -356,6 +369,7 @@ fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: R
                     frames_per_row,
                     total_rows,
                     frame_size,
+                    frame_delay,
                 } => {
                     path.hash(&mut hasher);
 
@@ -377,7 +391,10 @@ fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: R
                     );
 
                     Some(TextureData {
-                        texture: TextureType::Gif(gif),
+                        texture: TextureType::Gif {
+                            gif,
+                            frames: frame_delay,
+                        },
                         path,
                         resolution,
                     })
@@ -442,7 +459,7 @@ fn sys_spawn_new_images(
                 image_creator.spawn_image(image, meta)
             }
 
-            TextureType::Gif(gif) => {
+            TextureType::Gif { gif, frames } => {
                 let gif = GifImage {
                     id: *id,
                     frame: 0,
@@ -456,7 +473,7 @@ fn sys_spawn_new_images(
                     ),
                 };
 
-                image_creator.spawn_gif(gif, meta)
+                image_creator.spawn_gif(gif, frames.clone(), meta)
             }
         };
 
