@@ -254,14 +254,15 @@ fn load_gif(path: PathBuf) -> Option<ImageChannel> {
     let frame_height = frames[0].buffer().height();
 
     let frames_per_row = MAX_TEXTURE_WIDTH / frame_width;
-    let total_rows = frames.len() as u32 / frames_per_row + 1; // TODO
+    let total_rows = frames.len() as u32 / frames_per_row + 1;
 
     let texture_width = frame_width * frames_per_row;
     let texture_height = frame_height * total_rows;
 
     log::trace!(
-            "Processing gif {:?}. Frame Size: ({}, {}), Frames per row: {}, Total Rows: {}, Texture Size: ({}, {})",
+            "Processing gif {:?}. Frames: {}, Frame Size: ({}, {}), Frames per row: {}, Total Rows: {}, Texture Size: ({}, {})",
             path.file_name(),
+            frames.len(),
             frame_width,
             frame_height,
             frames_per_row,
@@ -445,6 +446,8 @@ fn sys_spawn_new_images(
                 let gif = GifImage {
                     id: *id,
                     frame: 0,
+                    total_frames: gif.total_frames,
+                    frames_per_row: gif.frames_per_row,
                     instance: Gif2dInstance::new(
                         device.inner(),
                         &gif_pipeline,

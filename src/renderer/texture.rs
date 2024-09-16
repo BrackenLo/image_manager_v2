@@ -1,6 +1,6 @@
 //====================================================================
 
-use image::{DynamicImage, Frame, GenericImage, GenericImageView};
+use image::{DynamicImage, GenericImageView};
 use shipyard::{AllStoragesView, Unique};
 use wgpu::util::DeviceExt;
 
@@ -64,18 +64,17 @@ pub(super) fn sys_resize_depth_texture(
 pub struct Gif {
     pub texture: Texture,
     pub buffer: wgpu::Buffer,
+    pub total_frames: u32,
+    pub frames_per_row: u32,
 }
 
 #[repr(C)]
-#[derive(bytemuck::Pod, bytemuck::Zeroable, Clone, Copy)]
+#[derive(Clone, Copy, bytemuck::Zeroable, bytemuck::Pod, Default)]
 pub struct GifRawData {
     pub total_frames: f32,
     pub frames_per_row: f32,
-    pub total_rows: f32,
-
-    pub frame_width: f32,
-    pub frame_height: f32,
-    padding: [u32; 3],
+    pub sample_width: f32,
+    pub sample_height: f32,
 }
 
 impl Gif {
@@ -93,100 +92,114 @@ impl Gif {
     ) -> Self {
         let texture = Texture::from_image(device, queue, &image, None, None);
 
+        let texture_width = frame_width * frames_per_row;
+        let sample_width = frame_width as f32 / texture_width as f32;
+
+        let texture_height = frame_height * total_rows;
+        let sample_height = frame_height as f32 / texture_height as f32;
+
         let raw_data = GifRawData {
             total_frames: total_frames as f32,
             frames_per_row: frames_per_row as f32,
-            total_rows: total_rows as f32,
-            frame_width: frame_width as f32,
-            frame_height: frame_height as f32,
-            padding: [0; 3],
+            sample_width,
+            sample_height,
         };
 
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&format!("{} gif buffer", label)),
             contents: bytemuck::cast_slice(&[raw_data]),
-            usage: wgpu::BufferUsages::UNIFORM,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        Self { texture, buffer }
-    }
-
-    pub fn _from_frames(device: &wgpu::Device, queue: &wgpu::Queue, frames: Vec<Frame>) -> Self {
-        log::trace!("Compiling gif with {} frames", frames.len());
-
-        let frame_width = frames[0].buffer().width();
-        let frame_height = frames[0].buffer().height();
-
-        let frames_per_row = MAX_TEXTURE_WIDTH / frame_width;
-        let total_rows = frames.len() as u32 / frames_per_row + 1;
-
-        let texture_width = frame_width * frames_per_row;
-        let texture_height = frame_height * total_rows;
-
-        log::trace!(
-            // "Frames per row {}, toal rows {}, size: ({}, {})",
-            "Frame Size: ({}, {}), Frames per row: {}, Total Rows: {}, Texture Size: ({}, {})",
-            frame_width,
-            frame_height,
+        Self {
+            texture,
+            buffer,
+            total_frames,
             frames_per_row,
-            total_rows,
-            texture_width,
-            texture_height
-        );
-
-        let texture = match texture_height > MAX_TEXTURE_HEIGHT {
-            true => {
-                log::warn!(
-                    "Failed to load gif with size ({}, {}) (too large or too many frames)",
-                    frame_width,
-                    frame_height
-                );
-
-                let image = DynamicImage::from(frames[0].buffer().clone());
-                Texture::from_image(device, queue, &image, None, None)
-            }
-
-            false => {
-                let mut image = DynamicImage::new_rgba8(texture_width, texture_height);
-
-                frames.iter().enumerate().for_each(|(index, frame)| {
-                    let mut sub_img = image.sub_image(
-                        index as u32 % frames_per_row * frame_width,
-                        index as u32 / frames_per_row * frame_height,
-                        frame_width,
-                        frame_height,
-                    );
-
-                    sub_img.copy_from(frame.buffer(), 0, 0).unwrap();
-                });
-
-                Texture::from_image(
-                    device,
-                    queue,
-                    &image,
-                    Some(&format!("Gif Texture {}x{}", texture_width, texture_height)),
-                    None,
-                )
-            }
-        };
-
-        let raw_data = GifRawData {
-            total_frames: frames.len() as f32,
-            frames_per_row: frames_per_row as f32,
-            total_rows: total_rows as f32,
-            frame_width: frame_width as f32,
-            frame_height: frame_height as f32,
-            padding: [0; 3],
-        };
-
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Gif Bufer"),
-            contents: bytemuck::cast_slice(&[raw_data]),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
-
-        Self { texture, buffer }
+        }
     }
+
+    // pub fn _from_frames(device: &wgpu::Device, queue: &wgpu::Queue, frames: Vec<Frame>) -> Self {
+    //     log::trace!("Compiling gif with {} frames", frames.len());
+
+    //     let frame_width = frames[0].buffer().width();
+    //     let frame_height = frames[0].buffer().height();
+
+    //     let frames_per_row = MAX_TEXTURE_WIDTH / frame_width;
+    //     let total_rows = frames.len() as u32 / frames_per_row + 1;
+
+    //     let texture_width = frame_width * frames_per_row;
+    //     let texture_height = frame_height * total_rows;
+
+    //     log::trace!(
+    //         // "Frames per row {}, toal rows {}, size: ({}, {})",
+    //         "Frame Size: ({}, {}), Frames per row: {}, Total Rows: {}, Texture Size: ({}, {})",
+    //         frame_width,
+    //         frame_height,
+    //         frames_per_row as f32,
+    //         total_rows,
+    //         texture_width,
+    //         texture_height
+    //     );
+
+    //     let texture = match texture_height > MAX_TEXTURE_HEIGHT {
+    //         true => {
+    //             log::warn!(
+    //                 "Failed to load gif with size ({}, {}) (too large or too many frames)",
+    //                 frame_width,
+    //                 frame_height
+    //             );
+
+    //             let image = DynamicImage::from(frames[0].buffer().clone());
+    //             Texture::from_image(device, queue, &image, None, None)
+    //         }
+
+    //         false => {
+    //             let mut image = DynamicImage::new_rgba8(texture_width, texture_height);
+
+    //             frames.iter().enumerate().for_each(|(index, frame)| {
+    //                 let mut sub_img = image.sub_image(
+    //                     index as u32 % frames_per_row * frame_width,
+    //                     index as u32 / frames_per_row * frame_height,
+    //                     frame_width,
+    //                     frame_height,
+    //                 );
+
+    //                 sub_img.copy_from(frame.buffer(), 0, 0).unwrap();
+    //             });
+
+    //             Texture::from_image(
+    //                 device,
+    //                 queue,
+    //                 &image,
+    //                 Some(&format!("Gif Texture {}x{}", texture_width, texture_height)),
+    //                 None,
+    //             )
+    //         }
+    //     };
+
+    //     let raw_data = GifRawData {
+    //         total_frames: frames.len() as f32,
+    //         frames_per_row: frames_per_row as f32,
+    //         sample_width: todo!(),
+    //         sample_height: todo!(),
+    //         // total_rows: total_rows as f32,
+    //         // frame_width: frame_width as f32,
+    //         // frame_height: frame_height as f32,
+    //     };
+
+    //     let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    //         label: Some("Gif Bufer"),
+    //         contents: bytemuck::cast_slice(&[raw_data]),
+    //         usage: wgpu::BufferUsages::UNIFORM,
+    //     });
+
+    //     Self {
+    //         texture,
+    //         buffer,
+    //         total_frames: frames.len() as u32,
+    //     }
+    // }
 }
 
 //====================================================================

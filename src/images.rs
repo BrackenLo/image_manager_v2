@@ -127,6 +127,8 @@ pub struct StandardImage {
 pub struct GifImage {
     pub id: u64,
     pub frame: u32,
+    pub total_frames: u32,
+    pub frames_per_row: u32,
     pub instance: Gif2dInstance,
 }
 
@@ -255,7 +257,7 @@ impl ImageCreator<'_> {
                 gif,
                 GifTimer {
                     acc: Duration::default(),
-                    fps: Duration::from_secs_f32(0.5),
+                    fps: Duration::from_secs_f32(0.08),
                 },
                 meta,
                 ImageDirty,

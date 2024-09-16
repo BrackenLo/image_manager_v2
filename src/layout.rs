@@ -280,8 +280,9 @@ fn sys_rebuild_gifs(
                     pos: pos.to_array(),
                     size: size.to_array(),
                     color: color.to_array(),
-                    frame: gif.frame as f32,
-                    padding: [0; 3],
+                    frame_x: (gif.frame % gif.frames_per_row) as f32,
+                    frame_y: (gif.frame / gif.frames_per_row) as f32,
+                    ..Default::default()
                 },
             )
         });
@@ -293,6 +294,10 @@ fn sys_tick_gifs(
     mut vm_gif: ViewMut<GifImage>,
     mut vm_gif_timer: ViewMut<GifTimer>,
     mut vm_dirty: ViewMut<ImageDirty>,
+
+    storage: Res<Storage>,
+    mut text_pipeline: ResMut<TextPipeline>,
+    mut vm_text: ViewMut<TextBuffer>,
 ) {
     (&mut vm_gif, &mut vm_gif_timer)
         .iter()
@@ -302,8 +307,19 @@ fn sys_tick_gifs(
 
             if timer.acc > timer.fps {
                 timer.acc -= timer.fps;
-                gif.frame += 1;
+                gif.frame = gif.frame + 1;
+                if gif.frame >= gif.total_frames {
+                    gif.frame = 0;
+                }
+
                 entities.add_component(id, &mut vm_dirty, ImageDirty);
+
+                if let Ok(mut text) = (&mut vm_text).get(id) {
+                    let data = storage.get_texture(gif.id).unwrap();
+                    let name = data.path.file_name().unwrap().to_str().unwrap();
+
+                    text.set_text(&mut text_pipeline, &format!("{} frame {}", name, gif.frame));
+                }
             }
         });
 }
@@ -638,6 +654,8 @@ fn sys_process_selected(
             let gif = GifImage {
                 id: original_image.id,
                 frame: 0,
+                total_frames: gif.total_frames,
+                frames_per_row: gif.frames_per_row,
                 instance: Gif2dInstance::new(
                     device.inner(),
                     &gif_pipeline,
