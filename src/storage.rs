@@ -190,6 +190,7 @@ fn sys_load_path(events: Res<EventHandler>, mut storage: ResMut<Storage>) {
     let load_kill_receiver = storage.load_kill_receiver.clone();
     let image_sender = storage.image_sender.clone();
 
+    // TODO - Spawn multiple threads
     std::thread::spawn(move || load_images(images_to_load, load_kill_receiver, image_sender));
 }
 
@@ -227,11 +228,30 @@ fn load_images(
             return;
         }
 
-        if let ImageChannel::Image(path, _) | ImageChannel::Gif { path, .. } = &data {
-            log::trace!(
-                "Loaded image {:?}",
-                &path.file_name().unwrap_or(&path.as_os_str())
-            );
+        match &data {
+            ImageChannel::Image(path, _) => {
+                log::trace!(
+                    "Loaded image {:?}",
+                    &path.file_name().unwrap_or(&path.as_os_str())
+                )
+            }
+            ImageChannel::Gif {
+                path,
+                total_frames,
+                frames_per_row,
+                frame_size,
+                ..
+            } => {
+                log::trace!(
+                    "Loaded gif   {:?} - total frames '{}', frames per row '{}', frame size: {:?}",
+                    &path.file_name().unwrap_or(&path.as_os_str()),
+                    total_frames,
+                    frames_per_row,
+                    frame_size,
+                )
+            }
+
+            _ => {}
         }
 
         image_sender.send(data).unwrap();
@@ -261,22 +281,11 @@ fn load_gif(path: PathBuf) -> Option<ImageChannel> {
     let texture_width = frame_width * frames_per_row;
     let texture_height = frame_height * total_rows;
 
-    log::trace!(
-            "Processing gif {:?}. Frames: {}, Frame Size: ({}, {}), Frames per row: {}, Total Rows: {}, Texture Size: ({}, {})",
-            path.file_name(),
-            frames.len(),
-            frame_width,
-            frame_height,
-            frames_per_row,
-            total_rows,
-            texture_width,
-            texture_height
-        );
-
     let data = match texture_height > MAX_TEXTURE_HEIGHT {
         true => {
             log::warn!(
-                "Failed to load gif with size ({}, {}) (too large or too many frames)",
+                "Failed to load gif {:?} with size ({}, {}) (too large or too many frames)",
+                &path.file_name().unwrap_or(&path.as_os_str()),
                 frame_width,
                 frame_height
             );

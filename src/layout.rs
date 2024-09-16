@@ -619,8 +619,19 @@ fn sys_process_selected(
         None => return,
     };
 
-    let original_image = image_creator.std_image.get(id).unwrap();
-    let texture = storage.get_texture(original_image.id).unwrap();
+    // let original_image = image_creator.std_image.get(id).unwrap();
+    // let texture = storage.get_texture(original_image.id).unwrap();
+
+    let id = if let Ok(img) = image_creator.std_image.get(id) {
+        img.id
+    } else if let Ok(gif) = image_creator.gif_image.get(id) {
+        gif.id
+    } else {
+        log::warn!("Selected image doesn't have an assosiated texture id");
+        return;
+    };
+
+    let texture = storage.get_texture(id).unwrap();
 
     let meta = ImageMeta {
         _texture_resolution: texture.resolution,
@@ -630,7 +641,7 @@ fn sys_process_selected(
     let entity_id = match &texture.texture {
         crate::storage::TextureType::Texture(texture) => {
             let image = StandardImage {
-                id: original_image.id,
+                id,
                 instance: Texture2dInstance::new(
                     device.inner(),
                     &texture_pipeline,
@@ -643,7 +654,7 @@ fn sys_process_selected(
         }
         crate::storage::TextureType::Gif { gif, frames } => {
             let gif = GifImage {
-                id: original_image.id,
+                id,
                 frame: 0,
                 total_frames: gif.total_frames,
                 frames_per_row: gif.frames_per_row,
