@@ -301,7 +301,8 @@ fn sys_tick_gifs(
         .for_each(|(id, (gif, timer))| {
             timer.acc += *time.delta();
 
-            let delay = timer.delay[gif.frame as usize];
+            // let delay = timer.delay[gif.frame as usize];
+            let delay = timer.delay.get_delay(&gif.frame);
 
             if timer.acc > delay {
                 timer.acc = std::time::Duration::ZERO;
@@ -666,7 +667,7 @@ fn sys_process_selected(
                 ),
             };
 
-            image_creator.spawn_gif(gif, frames.clone(), meta)
+            image_creator.spawn_gif(gif, frames, meta)
         }
     };
 

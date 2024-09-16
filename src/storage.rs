@@ -108,7 +108,10 @@ pub enum TextureType {
 
 enum ImageChannel {
     Finished,
-    Image(PathBuf, DynamicImage),
+    Image {
+        path: PathBuf,
+        image: DynamicImage,
+    },
     Gif {
         path: PathBuf,
         image: DynamicImage,
@@ -117,7 +120,7 @@ enum ImageChannel {
         total_rows: u32,
         frame_size: (u32, u32),
         frame_delay: Vec<Duration>,
-    }, // Gif(PathBuf, Vec<image::Frame>),
+    },
 }
 
 impl Storage {
@@ -199,37 +202,34 @@ fn load_images(
     load_kill_receiver: Receiver<bool>,
     image_sender: Sender<ImageChannel>,
 ) {
-    for to_load in images.into_iter() {
-        let data = match to_load.extension() {
+    for path in images.into_iter() {
+        let data = match path.extension() {
             None => {
-                log::trace!("Skipping file path '{:?}'", &to_load);
+                log::trace!("Skipping file path '{:?}'", &path);
                 continue;
             }
             Some(ext) => match ext.to_str() {
                 Some("jpg") | Some("png") => {
-                    let image_reader = image::ImageReader::open(&to_load).unwrap();
+                    let image_reader = image::ImageReader::open(&path).unwrap();
                     let image = image_reader.decode().unwrap();
 
-                    ImageChannel::Image(to_load, image)
+                    ImageChannel::Image { path, image }
                 }
 
-                Some("gif") => {
-                    load_gif(to_load).unwrap()
-
-                    // ImageChannel::Gif(to_load, frames)
-                }
+                Some("gif") => load_gif(path).unwrap(),
 
                 _ => continue,
             },
         };
 
         // Check if we should still be loading images before posting a new one
+        // TODO - Already loaded the data at this point so check should probably be moved to receiver instead
         if load_kill_receiver.try_recv().is_ok() {
             return;
         }
 
         match &data {
-            ImageChannel::Image(path, _) => {
+            ImageChannel::Image { path, .. } => {
                 log::trace!(
                     "Loaded image {:?}",
                     &path.file_name().unwrap_or(&path.as_os_str())
@@ -356,7 +356,7 @@ fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: R
 
         let texture_data = match storage.image_receiver.try_recv() {
             Ok(image) => match image {
-                ImageChannel::Image(path, image) => {
+                ImageChannel::Image { path, image } => {
                     let texture =
                         Texture::from_image(device.inner(), queue.inner(), &image, None, None);
 
@@ -482,7 +482,7 @@ fn sys_spawn_new_images(
                     ),
                 };
 
-                image_creator.spawn_gif(gif, frames.clone(), meta)
+                image_creator.spawn_gif(gif, frames, meta)
             }
         };
 

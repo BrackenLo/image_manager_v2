@@ -9,7 +9,10 @@ use shipyard::{
 
 use crate::{
     app::Stages,
-    renderer::{gif2d_pipeline::Gif2dInstance, texture2d_pipeline::Texture2dInstance},
+    renderer::{
+        gif2d_pipeline::Gif2dInstance, texture::GifFrameDelay,
+        texture2d_pipeline::Texture2dInstance,
+    },
     shipyard_tools::Plugin,
     tools::Size,
 };
@@ -135,7 +138,7 @@ pub struct GifImage {
 #[derive(Component)]
 pub struct GifTimer {
     pub acc: Duration,
-    pub delay: Vec<Duration>,
+    pub delay: GifFrameDelay,
 }
 
 #[derive(Component)]
@@ -240,7 +243,7 @@ impl ImageCreator<'_> {
     pub fn spawn_gif(
         &mut self,
         gif: GifImage,
-        frame_delay: Vec<Duration>,
+        frame_delay: &Vec<Duration>,
         meta: ImageMeta,
     ) -> EntityId {
         self.entities.add_entity(
@@ -262,7 +265,7 @@ impl ImageCreator<'_> {
                 gif,
                 GifTimer {
                     acc: Duration::default(),
-                    delay: frame_delay,
+                    delay: GifFrameDelay::from_durations(frame_delay),
                 },
                 meta,
                 ImageDirty,

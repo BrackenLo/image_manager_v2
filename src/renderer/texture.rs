@@ -1,5 +1,7 @@
 //====================================================================
 
+use std::{collections::HashMap, ops::Range, time::Duration};
+
 use image::{DynamicImage, GenericImageView};
 use shipyard::{AllStoragesView, Unique};
 use wgpu::util::DeviceExt;
@@ -60,6 +62,80 @@ pub(super) fn sys_resize_depth_texture(
 }
 
 //====================================================================
+
+pub struct GifFrameDelay {
+    delays: HashMap<Range<u32>, Duration>,
+}
+
+impl GifFrameDelay {
+    pub fn from_durations(delays: &Vec<Duration>) -> Self {
+        if delays.is_empty() {
+            log::warn!("Gif Frame Delay created with zero length vector");
+            return Self {
+                delays: HashMap::new(),
+            };
+        }
+
+        let mut delays_final = HashMap::new();
+        let mut start_index = 0;
+        let mut prev = delays[0];
+        let mut just_added = false;
+
+        // log::info!(
+        //     "{}",
+        //     delays
+        //         .iter()
+        //         .enumerate()
+        //         .fold("Delays".into(), |acc, (index, val)| {
+        //             format!("{}\n\t{}: {:?}", acc, index, val)
+        //         })
+        // );
+
+        delays
+            .iter()
+            .enumerate()
+            .skip(1)
+            .for_each(|(index, delay)| {
+                just_added = false;
+                if *delay == prev {
+                    return;
+                }
+
+                let index = index as u32;
+                delays_final.insert(start_index..index, prev);
+                // log::info!("Adding range {:?} {:?}", start_index..index, prev);
+
+                start_index = index;
+                prev = *delay;
+                just_added = true;
+            });
+
+        let final_index = delays.len() as u32;
+
+        delays_final.insert(start_index..final_index, prev);
+        // log::info!(
+        //     "Adding final range {:?} {:?}",
+        //     start_index..final_index,
+        //     prev
+        // );
+
+        Self {
+            delays: delays_final,
+        }
+    }
+
+    pub fn get_delay(&self, frame: &u32) -> Duration {
+        let val = self.delays.iter().find(|(key, _)| key.contains(frame));
+
+        match val {
+            Some((_, key)) => *key,
+            None => {
+                log::warn!("Get delay: frame {} out of range", frame);
+                Duration::ZERO
+            }
+        }
+    }
+}
 
 pub struct Gif {
     pub texture: Texture,
