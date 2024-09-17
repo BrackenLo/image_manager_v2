@@ -79,8 +79,7 @@ impl Default for ImageSize {
 
 #[derive(Component)]
 pub struct ImageMeta {
-    pub _texture_resolution: Size<u32>,
-    pub aspect: f32,
+    pub texture_resolution: Size<u32>,
 }
 
 //--------------------------------------------------

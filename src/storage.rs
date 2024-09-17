@@ -499,8 +499,7 @@ fn sys_spawn_new_images(
         let index = layout.next();
 
         let meta = ImageMeta {
-            _texture_resolution: texture.resolution,
-            aspect: texture.resolution.height as f32 / texture.resolution.width as f32,
+            texture_resolution: texture.resolution,
         };
 
         let entity_id = match &texture.texture {

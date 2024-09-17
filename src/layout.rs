@@ -218,16 +218,12 @@ fn sys_order_images(
             pos.x = x;
             pos.y = y;
 
-            match meta.aspect < 1. {
-                true => {
-                    size.width = layout.tile_size.x;
-                    size.height = layout.tile_size.y * meta.aspect;
-                }
-                false => {
-                    size.width = layout.tile_size.x / meta.aspect;
-                    size.height = layout.tile_size.y;
-                }
-            }
+            let wratio = layout.tile_size.x / meta.texture_resolution.width as f32;
+            let hratio = layout.tile_size.y / meta.texture_resolution.height as f32;
+            let ratio = f32::min(wratio, hratio);
+
+            size.width = meta.texture_resolution.width as f32 * ratio;
+            size.height = meta.texture_resolution.height as f32 * ratio;
         });
 }
 
@@ -635,8 +631,7 @@ fn sys_process_selected(
     let texture = storage.get_texture(id).unwrap();
 
     let meta = ImageMeta {
-        _texture_resolution: texture.resolution,
-        aspect: texture.resolution.height as f32 / texture.resolution.width as f32,
+        texture_resolution: texture.resolution,
     };
 
     let entity_id = match &texture.texture {
@@ -695,21 +690,18 @@ fn sys_resize_selected(
     (&v_shown, &mut vm_pos, &mut vm_size, &v_meta)
         .iter()
         .for_each(|(_, pos, size, meta)| {
-            let half_width = window_size.width_f32() / 2.;
+            let selected_viewport_width = window_size.width_f32() / 2.;
+            let selected_viewport_height = window_size.height_f32();
 
-            pos.x = half_width / 2.;
+            let wratio = selected_viewport_width / meta.texture_resolution.width as f32;
+            let hratio = selected_viewport_height / meta.texture_resolution.height as f32;
+            let ratio = f32::min(wratio, hratio);
+
+            size.width = meta.texture_resolution.width as f32 * ratio;
+            size.height = meta.texture_resolution.height as f32 * ratio;
+
+            pos.x = selected_viewport_width / 2.;
             pos.y = 0.;
-
-            match meta.aspect < 1. {
-                true => {
-                    size.width = half_width;
-                    size.height = window_size.height_f32() * meta.aspect;
-                }
-                false => {
-                    size.width = half_width / meta.aspect;
-                    size.height = window_size.height_f32();
-                }
-            }
         });
 }
 
