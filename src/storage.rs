@@ -21,7 +21,10 @@ use crate::{
     renderer::{
         gif2d_pipeline::{Gif2dInstance, Gif2dInstanceRaw, Gif2dPipeline},
         text_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
-        texture::{Gif, Texture, MAX_TEXTURE_HEIGHT, MAX_TEXTURE_WIDTH},
+        texture::{
+            Gif, Texture, MAX_TEXTURE_HEIGHT, MAX_TEXTURE_WIDTH, MAX_USABLE_IMAGE_HEIGHT,
+            MAX_USABLE_IMAGE_WIDTH,
+        },
         texture2d_pipeline::{Texture2dInstance, Texture2dInstanceRaw, Texture2dPipeline},
         Device, Queue,
     },
@@ -213,6 +216,18 @@ fn load_images(
                     let image_reader = image::ImageReader::open(&path).unwrap();
                     let image = image_reader.decode().unwrap();
 
+                    let resize_image = image.width() > MAX_USABLE_IMAGE_WIDTH
+                        || image.height() > MAX_USABLE_IMAGE_HEIGHT;
+
+                    let image = match resize_image {
+                        true => image.resize(
+                            MAX_USABLE_IMAGE_WIDTH,
+                            MAX_USABLE_IMAGE_HEIGHT,
+                            image::imageops::FilterType::Nearest,
+                        ),
+                        false => image,
+                    };
+
                     ImageChannel::Image { path, image }
                 }
 
@@ -272,8 +287,30 @@ fn load_gif(path: PathBuf) -> Option<ImageChannel> {
         return None;
     }
 
-    let frame_width = frames[0].buffer().width();
-    let frame_height = frames[0].buffer().height();
+    let original_frame_width = frames[0].buffer().width();
+    let original_frame_height = frames[0].buffer().height();
+
+    // Shrink gifs if they are larger than they need to be
+    let (frame_width, frame_height) = {
+        let new_width = match original_frame_width > MAX_USABLE_IMAGE_WIDTH {
+            true => MAX_USABLE_IMAGE_WIDTH,
+            false => original_frame_width,
+        };
+
+        let new_height = match original_frame_height > MAX_USABLE_IMAGE_HEIGHT {
+            true => MAX_USABLE_IMAGE_HEIGHT,
+            false => original_frame_height,
+        };
+
+        let wratio = new_width as f32 / original_frame_width as f32;
+        let hratio = new_height as f32 / original_frame_height as f32;
+        let ratio = f32::min(wratio, hratio);
+
+        (
+            (original_frame_width as f32 * ratio).round() as u32,
+            (original_frame_height as f32 * ratio).round() as u32,
+        )
+    };
 
     let frames_per_row = MAX_TEXTURE_WIDTH / frame_width;
     let total_rows = frames.len() as u32 / frames_per_row + 1;
@@ -284,10 +321,15 @@ fn load_gif(path: PathBuf) -> Option<ImageChannel> {
     let data = match texture_height > MAX_TEXTURE_HEIGHT {
         true => {
             log::warn!(
-                "Failed to load gif {:?} with size ({}, {}) (too large or too many frames)",
+                "Failed to load gif {:?} of {} frames and frame size ({}, {}). texure size ({}, {}) exceeds max texture size ({}, {})",
                 &path.file_name().unwrap_or(&path.as_os_str()),
+                frames.len(),
                 frame_width,
-                frame_height
+                frame_height,
+                texture_width,
+                texture_height,
+                MAX_TEXTURE_WIDTH,
+                MAX_TEXTURE_HEIGHT
             );
 
             let image = DynamicImage::from(frames[0].buffer().clone());
@@ -318,7 +360,15 @@ fn load_gif(path: PathBuf) -> Option<ImageChannel> {
                         frame_height,
                     );
 
-                    sub_img.copy_from(frame.buffer(), 0, 0).unwrap();
+                    let frame_img = DynamicImage::from(frame.buffer().clone());
+                    let frame_img = frame_img.resize(
+                        frame_width,
+                        frame_height,
+                        image::imageops::FilterType::Nearest,
+                    );
+
+                    sub_img.copy_from(&frame_img, 0, 0).unwrap();
+                    // sub_img.copy_from(frame.buffer(), 0, 0).unwrap();
 
                     let millis = frame.delay().numer_denom_ms().0;
                     let delay = Duration::from_millis(millis as u64);

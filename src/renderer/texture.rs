@@ -19,6 +19,9 @@ use super::Device;
 pub const MAX_TEXTURE_WIDTH: u32 = 8192;
 pub const MAX_TEXTURE_HEIGHT: u32 = 8192;
 
+pub const MAX_USABLE_IMAGE_WIDTH: u32 = 1920 / 2;
+pub const MAX_USABLE_IMAGE_HEIGHT: u32 = 1080;
+
 //====================================================================
 
 #[derive(Unique)]
@@ -79,45 +82,26 @@ impl GifFrameDelay {
         let mut delays_final = HashMap::new();
         let mut start_index = 0;
         let mut prev = delays[0];
-        let mut just_added = false;
-
-        // log::info!(
-        //     "{}",
-        //     delays
-        //         .iter()
-        //         .enumerate()
-        //         .fold("Delays".into(), |acc, (index, val)| {
-        //             format!("{}\n\t{}: {:?}", acc, index, val)
-        //         })
-        // );
 
         delays
             .iter()
             .enumerate()
             .skip(1)
             .for_each(|(index, delay)| {
-                just_added = false;
                 if *delay == prev {
                     return;
                 }
 
                 let index = index as u32;
                 delays_final.insert(start_index..index, prev);
-                // log::info!("Adding range {:?} {:?}", start_index..index, prev);
 
                 start_index = index;
                 prev = *delay;
-                just_added = true;
             });
 
         let final_index = delays.len() as u32;
 
         delays_final.insert(start_index..final_index, prev);
-        // log::info!(
-        //     "Adding final range {:?} {:?}",
-        //     start_index..final_index,
-        //     prev
-        // );
 
         Self {
             delays: delays_final,
