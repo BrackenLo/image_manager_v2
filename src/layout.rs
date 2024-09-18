@@ -50,6 +50,7 @@ impl Plugin<Stages> for LayoutPlugin {
                     sys_tick_gifs,
                     sys_rebuild_gifs,
                     sys_reposition_text_dirty,
+                    // sys_debug_layout,
                 )
                     .into_sequential_workload(),
             )
@@ -413,9 +414,50 @@ fn sys_reposition_text(
 
 //====================================================================
 
+// fn sys_debug_layout(
+//     window_size: Res<WindowSize>,
+//     layout: Res<LayoutManager>,
+//     camera: Res<Camera<MainCamera>>,
+//     mut debug_circles: ResMut<DebugCircles>,
+// ) {
+//     let cam_top = camera.raw.translation.y + camera.raw.top;
+//     let top_row = f32::floor(cam_top / (layout.tile_size.y + layout.tile_spacing.y)) - 2.;
+//     let top_row_start_index = layout.columns as f32 * top_row;
+
+//     let top_row_debug_pos = top_row * (layout.tile_size.y + layout.tile_spacing.y);
+
+//     // let new_top_row = top_row_start_index / layout.columns;
+//     // let top_row_pos = (new_top_row as f32 * -1.) * (layout.tile_size.y + layout.tile_spacing.y);
+
+//     let start_y = window_size.height_f32() / 2. - layout.tile_size.y / 2.;
+
+//     println!(
+//         "Top row = {}, top row start index = {}, top row debug pos = {}",
+//         top_row, top_row_start_index, top_row_debug_pos
+//     );
+
+//     debug_circles.to_spawn.push((
+//         0.,
+//         // top_row_pos,
+//         // start_y - top_row,
+//         start_y + top_row_debug_pos,
+//         // cam_top,
+//         [1., 0., 0., 1.],
+//         Duration::from_secs_f32(0.1),
+//     ));
+
+//     debug_circles.to_spawn.push((
+//         camera.raw.translation.x,
+//         camera.raw.translation.y,
+//         [0., 0., 1., 1.],
+//         Duration::from_secs_f32(0.1),
+//     ));
+// }
+
 fn sys_navigate_layout(
     mut events: ResMut<EventHandler>,
 
+    window_size: Res<WindowSize>,
     mut layout: ResMut<LayoutManager>,
     navigation: Res<LayoutNavigation>,
     mut camera: ResMut<Camera<MainCamera>>,
@@ -459,6 +501,13 @@ fn sys_navigate_layout(
             zoom_speed *= navigation.zoom_mod;
         }
 
+        // Store the current top row index
+        let cam_top = camera.raw.translation.y + camera.raw.top;
+        let top_row = f32::floor(cam_top / (layout.tile_size.y + layout.tile_spacing.y)) - 2.;
+        let top_row_start_index = layout.columns as f32 * top_row;
+
+        //
+
         let speed = glam::vec2(zoom_speed, zoom_speed) * time.delta_seconds();
 
         layout.tile_size += speed;
@@ -468,8 +517,26 @@ fn sys_navigate_layout(
 
         image_dirtier.mark_all_dirty();
 
+        //
+
+        let prev_columns = layout.columns;
+
         layout.columns =
             (layout.width as u32 / (layout.tile_size.x + layout.tile_spacing.x) as u32).max(1);
+
+        if prev_columns != layout.columns {
+            let start_y = window_size.height_f32() / 2. - layout.tile_size.y / 2.;
+
+            let sub = match prev_columns > layout.columns {
+                true => 1.,
+                false => 0.,
+            };
+
+            let new_top_row = f32::ceil(top_row_start_index / layout.columns as f32) + sub;
+            let new_top_row_pos = new_top_row * (layout.tile_size.y + layout.tile_spacing.y);
+
+            camera.raw.translation.y = start_y + new_top_row_pos - camera.raw.top;
+        }
     }
 
     if y != 0. {

@@ -45,7 +45,7 @@ const VERTICES: [RawVertex; 4] = [
 pub const INDICES: [u16; 6] = [0, 1, 3, 0, 3, 2];
 
 #[repr(C)]
-#[derive(bytemuck::Pod, bytemuck::Zeroable, Clone, Copy)]
+#[derive(bytemuck::Pod, bytemuck::Zeroable, Clone, Copy, Debug)]
 pub struct RawCircleInstance {
     pub pos: [f32; 2],
     pub radius: f32,
@@ -87,7 +87,7 @@ impl RawCircleInstance {
         self.color = [0., 0., 0., 0.];
         self
     }
-    pub fn _with_border(mut self, radius: f32, color: [f32; 4]) -> Self {
+    pub fn with_border(mut self, radius: f32, color: [f32; 4]) -> Self {
         self.border_radius = radius;
         self.border_color = color;
         self
@@ -196,6 +196,7 @@ impl CirclePipeline {
 #[derive(Component)]
 pub struct Circle {
     pub radius: f32,
+    pub color: [f32; 4],
 }
 
 pub(super) fn sys_update_circle_pipeline(
@@ -208,7 +209,11 @@ pub(super) fn sys_update_circle_pipeline(
 ) {
     let instances = (&v_circle, &v_pos)
         .iter()
-        .map(|(circle, pos)| RawCircleInstance::new([pos.x, pos.y], circle.radius).hollow())
+        .map(|(circle, pos)| {
+            RawCircleInstance::new([pos.x, pos.y], circle.radius)
+                .hollow()
+                .with_border(6., circle.color)
+        })
         .collect::<Vec<_>>();
 
     pipeline.update(device.inner(), queue.inner(), &instances);

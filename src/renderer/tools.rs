@@ -181,6 +181,7 @@ pub fn update_instance_buffer<T: bytemuck::Pod>(
     // We can fit all data inside existing buffer
     if data.len() <= *instance_count as usize {
         queue.write_buffer(buffer, 0, bytemuck::cast_slice(data));
+        *instance_count = data.len() as u32; // TODO - add additional variable for buffer size
         return;
     }
 
