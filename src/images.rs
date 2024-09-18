@@ -6,14 +6,13 @@ use shipyard::{
     AllStoragesViewMut, Borrow, BorrowInfo, Component, EntitiesViewMut, EntityId, IntoIter,
     IntoWithId, IntoWorkload, View, ViewMut,
 };
+use shipyard_tools::{Plugin, Stages};
 
 use crate::{
-    app::Stages,
     renderer::{
         gif2d_pipeline::Gif2dInstance, texture::GifFrameDelay,
         texture2d_pipeline::Texture2dInstance,
     },
-    shipyard_tools::Plugin,
     tools::Size,
 };
 
@@ -21,12 +20,15 @@ use crate::{
 
 pub(crate) struct ImagePlugin;
 
-impl Plugin<Stages> for ImagePlugin {
-    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
+impl Plugin for ImagePlugin {
+    fn build(
+        self,
+        workload_builder: shipyard_tools::WorkloadBuilder,
+    ) -> shipyard_tools::WorkloadBuilder {
         workload_builder.add_workload(
             Stages::Last,
             (sys_remove_pending, sys_clear_dirty).into_workload(),
-        );
+        )
     }
 }
 

@@ -6,16 +6,15 @@ use shipyard::{
     AllStoragesView, AllStoragesViewMut, EntitiesViewMut, EntityId, Get, IntoWorkload, Unique,
     ViewMut,
 };
+use shipyard_tools::{Plugin, Res, ResMut, Stages, SubStages};
 
 use crate::{
-    app::Stages,
     images::Pos,
     renderer::{
         camera::{Camera, MainCamera},
         circle_pipeline::Circle,
         text_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
     },
-    shipyard_tools::{Plugin, Res, ResMut},
     tools::{MouseInput, Time},
 };
 
@@ -23,8 +22,11 @@ use crate::{
 
 pub(crate) struct DebugPlugin;
 
-impl Plugin<Stages> for DebugPlugin {
-    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
+impl Plugin for DebugPlugin {
+    fn build(
+        self,
+        workload_builder: shipyard_tools::WorkloadBuilder,
+    ) -> shipyard_tools::WorkloadBuilder {
         workload_builder
             .add_workload(
                 Stages::Setup,
@@ -35,12 +37,14 @@ impl Plugin<Stages> for DebugPlugin {
                 )
                     .into_workload(),
             )
-            .add_workload(
-                Stages::PostSetup,
+            .add_workload_sub(
+                Stages::Setup,
+                SubStages::Post,
                 (sys_display_memory_usage).into_workload(),
             )
-            .add_workload(
-                Stages::PreUpdate,
+            .add_workload_sub(
+                Stages::Update,
+                SubStages::Pre,
                 (
                     sys_tick_upkeep,
                     sys_update_mouse_tracker,
@@ -48,7 +52,7 @@ impl Plugin<Stages> for DebugPlugin {
                     sys_despawn_debug_circles,
                 )
                     .into_workload(),
-            );
+            )
     }
 }
 

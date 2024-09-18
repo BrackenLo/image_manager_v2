@@ -8,7 +8,6 @@ pub(crate) mod debug;
 pub(crate) mod images;
 pub(crate) mod layout;
 pub(crate) mod renderer;
-pub(crate) mod shipyard_tools;
 pub(crate) mod storage;
 pub(crate) mod tools;
 pub(crate) mod window;

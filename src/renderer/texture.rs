@@ -4,13 +4,10 @@ use std::{collections::HashMap, ops::Range, time::Duration};
 
 use image::{DynamicImage, GenericImageView};
 use shipyard::{AllStoragesView, Unique};
+use shipyard_tools::{Res, ResMut};
 use wgpu::util::DeviceExt;
 
-use crate::{
-    shipyard_tools::{Res, ResMut},
-    tools::Size,
-    window::WindowSize,
-};
+use crate::{tools::Size, window::WindowSize};
 
 use super::Device;
 

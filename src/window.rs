@@ -3,11 +3,9 @@
 use std::sync::Arc;
 
 use shipyard::{AllStoragesView, Unique};
+use shipyard_tools::{prelude::*, UniqueTools};
 
-use crate::{
-    shipyard_tools::{Event, EventHandler, ResMut, UniqueTools},
-    tools::Size,
-};
+use crate::tools::Size;
 
 //====================================================================
 

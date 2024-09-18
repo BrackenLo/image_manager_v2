@@ -13,9 +13,9 @@ use image::{
     codecs::gif::GifDecoder, AnimationDecoder, DynamicImage, GenericImage, GenericImageView,
 };
 use shipyard::{AllStoragesView, IntoWorkload, SystemModificator, Unique, ViewMut, Workload};
+use shipyard_tools::prelude::*;
 
 use crate::{
-    app::Stages,
     images::{GifImage, ImageCreator, ImageIndex, ImageMeta, StandardImage},
     layout::LayoutManager,
     renderer::{
@@ -28,7 +28,6 @@ use crate::{
         texture2d_pipeline::{Texture2dInstance, Texture2dInstanceRaw, Texture2dPipeline},
         Device, Queue,
     },
-    shipyard_tools::{Event, EventHandler, Plugin, Res, ResMut},
     tools::Size,
 };
 
@@ -36,19 +35,24 @@ use crate::{
 
 pub(crate) struct StoragePlugin;
 
-impl Plugin<Stages> for StoragePlugin {
-    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
+impl Plugin for StoragePlugin {
+    fn build(self, workload_builder: WorkloadBuilder) -> WorkloadBuilder {
         workload_builder
-            .add_workload(Stages::PreSetup, (sys_setup_storage).into_workload())
-            .add_workload(
-                Stages::PreUpdate,
+            .add_workload_sub(
+                Stages::Setup,
+                SubStages::Pre,
+                (sys_setup_storage).into_workload(),
+            )
+            .add_workload_sub(
+                Stages::Update,
+                SubStages::Pre,
                 (
                     sys_process_new_images.run_if(sys_check_loading),
                     sys_spawn_new_images.run_if(sys_check_pending),
                 )
                     .into_workload(),
             )
-            .add_event::<LoadFolderEvent>(Workload::new("").with_system(sys_load_path));
+            .add_event::<LoadFolderEvent>(Workload::new("").with_system(sys_load_path))
     }
 }
 

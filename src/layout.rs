@@ -5,10 +5,10 @@ use shipyard::{
     AllStoragesView, EntitiesView, EntityId, Get, IntoIter, IntoWithId, IntoWorkload, Remove,
     Unique, View, ViewMut,
 };
+use shipyard_tools::{prelude::*, UniqueTools};
 use winit::{event::MouseButton, keyboard::KeyCode};
 
 use crate::{
-    app::Stages,
     images::{
         Color, GifImage, GifTimer, ImageCreator, ImageDirtier, ImageDirty, ImageHovered,
         ImageIndex, ImageMeta, ImageSelected, ImageShown, ImageSize, Pos, StandardImage, ToRemove,
@@ -20,7 +20,6 @@ use crate::{
         texture2d_pipeline::{Texture2dInstance, Texture2dInstanceRaw, Texture2dPipeline},
         Device, Queue,
     },
-    shipyard_tools::{Event, EventHandler, Plugin, Res, ResMut, UniqueTools},
     storage::Storage,
     tools::{aabb_point, Input, MouseInput, Time},
     window::{ResizeEvent, WindowSize},
@@ -30,8 +29,11 @@ use crate::{
 
 pub(crate) struct LayoutPlugin;
 
-impl Plugin<Stages> for LayoutPlugin {
-    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
+impl Plugin for LayoutPlugin {
+    fn build(
+        self,
+        workload_builder: shipyard_tools::WorkloadBuilder,
+    ) -> shipyard_tools::WorkloadBuilder {
         workload_builder
             .add_workload(Stages::Setup, (sys_setup_layout).into_workload())
             .add_workload(
@@ -42,8 +44,9 @@ impl Plugin<Stages> for LayoutPlugin {
                 )
                     .into_workload(),
             )
-            .add_workload(
-                Stages::PostUpdate,
+            .add_workload_sub(
+                Stages::Update,
+                SubStages::Post,
                 (
                     sys_order_images,
                     sys_rebuild_images,
@@ -66,7 +69,7 @@ impl Plugin<Stages> for LayoutPlugin {
                 )
                     .into_workload(),
             )
-            .add_event::<ScrollEvent>((sys_reposition_text).into_workload());
+            .add_event::<ScrollEvent>((sys_reposition_text).into_workload())
     }
 }
 

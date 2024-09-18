@@ -5,11 +5,9 @@ use glyphon::{
     TextAtlas, TextBounds, TextRenderer, Viewport, Wrap,
 };
 use shipyard::{AllStoragesView, Component, IntoIter, Unique, View};
+use shipyard_tools::{Res, ResMut};
 
-use crate::{
-    shipyard_tools::{Res, ResMut},
-    window::WindowSize,
-};
+use crate::window::WindowSize;
 
 use super::{Device, Queue, SurfaceConfig};
 
@@ -114,6 +112,7 @@ pub(super) fn sys_prep_text(
             scale: 1.,
             bounds: buffer.bounds,
             default_color: buffer.color,
+            custom_glyphs: &[],
         })
         .collect::<Vec<_>>();
 

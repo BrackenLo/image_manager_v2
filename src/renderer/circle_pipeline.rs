@@ -1,12 +1,10 @@
 //====================================================================
 
 use shipyard::{Component, IntoIter, Unique, View};
+use shipyard_tools::{Res, ResMut};
 use wgpu::util::DeviceExt;
 
-use crate::{
-    images::Pos,
-    shipyard_tools::{Res, ResMut},
-};
+use crate::images::Pos;
 
 use super::{
     tools::{self},

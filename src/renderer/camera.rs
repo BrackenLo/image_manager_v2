@@ -3,13 +3,10 @@
 use std::marker::PhantomData;
 
 use shipyard::{AllStoragesView, Unique};
+use shipyard_tools::{Res, ResMut, UniqueTools};
 use wgpu::util::DeviceExt;
 
-use crate::{
-    shipyard_tools::{Res, ResMut, UniqueTools},
-    tools::Size,
-    window::WindowSize,
-};
+use crate::{tools::Size, window::WindowSize};
 
 use super::{Device, Queue};
 

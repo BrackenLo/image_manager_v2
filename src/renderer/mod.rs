@@ -6,7 +6,8 @@ use camera::{
 use circle_pipeline::{sys_update_circle_pipeline, CirclePipeline};
 use gif2d_pipeline::Gif2dPipeline;
 use pollster::FutureExt;
-use shipyard::{AllStoragesView, IntoIter, IntoWorkload, Unique, View};
+use shipyard::{AllStoragesView, IntoIter, IntoWorkload, SystemModificator, Unique, View};
+use shipyard_tools::{prelude::*, UniqueTools};
 use text_pipeline::{
     sys_prep_text, sys_resize_text_pipeline, sys_setup_text_pipeline, sys_trim_text_pipeline,
     TextPipeline,
@@ -15,9 +16,7 @@ use texture::{sys_resize_depth_texture, sys_setup_depth_texture, DepthTexture};
 use texture2d_pipeline::Texture2dPipeline;
 
 use crate::{
-    app::Stages,
     images::{GifImage, ImageShown, StandardImage},
-    shipyard_tools::{Plugin, Res, ResMut, UniqueTools},
     tools::Size,
     window::{ResizeEvent, WindowSize},
 };
@@ -35,15 +34,20 @@ pub mod tools;
 
 pub(crate) struct RendererPlugin;
 
-impl Plugin<Stages> for RendererPlugin {
-    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
+impl Plugin for RendererPlugin {
+    fn build(
+        self,
+        workload_builder: shipyard_tools::WorkloadBuilder,
+    ) -> shipyard_tools::WorkloadBuilder {
         workload_builder
-            .add_workload(
-                Stages::PreSetup,
+            .add_workload_sub(
+                Stages::Setup,
+                SubStages::First,
                 (sys_setup_renderer_components, sys_setup_camera).into_sequential_workload(),
             )
-            .add_workload(
+            .add_workload_sub(
                 Stages::Setup,
+                SubStages::Pre,
                 (
                     sys_setup_misc,
                     sys_setup_depth_texture,
@@ -52,17 +56,19 @@ impl Plugin<Stages> for RendererPlugin {
                 )
                     .into_workload(),
             )
-            .add_workload(
+            .add_workload_sub(
                 // FIX - text appears wobbly when scrolling due to updating the frame after the camera does
-                Stages::PreUpdate,
+                Stages::Update,
+                SubStages::Pre,
                 (
                     sys_update_camera::<MainCamera>,
                     sys_update_camera::<UiCamera>,
                 )
                     .into_workload(),
             )
-            .add_workload(
-                Stages::PostUpdate,
+            .add_workload_sub(
+                Stages::Update,
+                SubStages::Post,
                 (
                     // sys_update_camera::<MainCamera>,
                     // sys_update_camera::<UiCamera>,
@@ -71,7 +77,11 @@ impl Plugin<Stages> for RendererPlugin {
                 )
                     .into_workload(),
             )
-            .add_workload(Stages::PreRender, (sys_setup_render_pass).into_workload())
+            .add_workload_sub(
+                Stages::Render,
+                SubStages::Pre,
+                (sys_setup_encoder, sys_setup_render_pass).into_sequential_workload(),
+            )
             .add_workload(
                 Stages::Render,
                 (
@@ -83,7 +93,15 @@ impl Plugin<Stages> for RendererPlugin {
                 )
                     .into_sequential_workload(),
             )
-            .add_workload(Stages::PostRender, (sys_trim_text_pipeline).into_workload())
+            .add_workload_sub(
+                Stages::Render,
+                SubStages::Last,
+                (
+                    sys_trim_text_pipeline.after_all(sys_submit_encoder),
+                    sys_submit_encoder,
+                )
+                    .into_workload(),
+            )
             .add_event::<ResizeEvent>(
                 (
                     sys_resize,
@@ -92,7 +110,7 @@ impl Plugin<Stages> for RendererPlugin {
                     sys_resize_camera::<UiCamera>,
                 )
                     .into_workload(),
-            );
+            )
     }
 }
 
@@ -264,6 +282,17 @@ fn sys_setup_misc(all_storages: AllStoragesView) {
     all_storages.add_unique(ClearColor::default());
 }
 
+//====================================================================
+
+fn sys_setup_encoder(all_storages: AllStoragesView, device: Res<Device>, surface: Res<Surface>) {
+    let tools = match RenderPassTools::new(device.inner(), surface.inner()) {
+        Ok(tools) => tools,
+        Err(_) => todo!(),
+    };
+
+    all_storages.add_unique(tools);
+}
+
 fn sys_setup_render_pass(
     all_storages: AllStoragesView,
     mut tools: ResMut<RenderPassTools>,
@@ -279,6 +308,17 @@ fn sys_setup_render_pass(
 
     all_storages.add_unique(RenderPass { pass });
 }
+
+fn sys_finish_pass(all_storages: AllStoragesView) {
+    all_storages.remove_unique::<RenderPass>().ok();
+}
+
+fn sys_submit_encoder(all_storages: AllStoragesView, queue: Res<Queue>) {
+    let tools = all_storages.remove_unique::<RenderPassTools>().unwrap();
+    tools.finish(queue.inner());
+}
+
+//====================================================================
 
 fn sys_render_circles(
     mut pass: ResMut<RenderPass>,
@@ -350,10 +390,6 @@ fn sys_render_gifs(
 
         gif_pipeline.render(&mut pass.pass, &ui_camera.bind_group(), images.into_iter());
     }
-}
-
-fn sys_finish_pass(all_storages: AllStoragesView) {
-    all_storages.remove_unique::<RenderPass>().ok();
 }
 
 fn sys_render_text(mut tools: ResMut<RenderPassTools>, text_pipeline: Res<TextPipeline>) {

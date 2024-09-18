@@ -2,7 +2,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use shipyard::AllStoragesView;
+use shipyard_tools::{Stages, WorkloadBuilder};
 use winit::{
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow},
@@ -12,33 +12,13 @@ use crate::{
     debug::DebugPlugin,
     images::ImagePlugin,
     layout::LayoutPlugin,
-    renderer::{Device, Queue, RenderPassTools, RendererPlugin, Surface},
-    shipyard_tools::{Res, WorkloadBuilder},
+    renderer::RendererPlugin,
     storage::StoragePlugin,
     tools::{self, Size, ToolsPlugin},
     window::{self, Window},
 };
 
 //====================================================================
-
-#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug, shipyard::Label, enum_iterator::Sequence)]
-pub enum Stages {
-    PreSetup,
-    Setup,
-    PostSetup,
-
-    First,
-
-    PreUpdate,
-    Update,
-    PostUpdate,
-
-    PreRender,
-    Render,
-    PostRender,
-
-    Last,
-}
 
 const TIMESTEP: f32 = 1. / 75.;
 
@@ -69,9 +49,7 @@ impl App {
             .add_plugin(ImagePlugin)
             .build();
 
-        world.run_workload(Stages::PreSetup).unwrap();
         world.run_workload(Stages::Setup).unwrap();
-        world.run_workload(Stages::PostSetup).unwrap();
 
         Self {
             world,
@@ -95,54 +73,15 @@ impl App {
     fn tick(&mut self) {
         self.world.run_workload(Stages::First).unwrap();
 
-        crate::shipyard_tools::activate_events(&self.world);
+        shipyard_tools::activate_events(&self.world);
 
-        self.world.run_workload(Stages::PreUpdate).unwrap();
         self.world.run_workload(Stages::Update).unwrap();
-        self.world.run_workload(Stages::PostUpdate).unwrap();
-
-        // Rendering
-        if let Err(e) = self.world.run(sys_setup_render) {
-            match e {
-                wgpu::SurfaceError::Lost => todo!(),
-                wgpu::SurfaceError::OutOfMemory => todo!(),
-                // wgpu::SurfaceError::Timeout => todo!(),
-                // wgpu::SurfaceError::Outdated => todo!(),
-                _ => {}
-            }
-
-            log::debug!("Skipped render frame: {}", e);
-
-            return;
-        }
-
-        self.world.run_workload(Stages::PreRender).unwrap();
         self.world.run_workload(Stages::Render).unwrap();
-        self.world.run_workload(Stages::PostRender).unwrap();
-
-        self.world.run(sys_finish_render);
 
         self.world.run_workload(Stages::Last).unwrap();
     }
 
     //--------------------------------------------------
-}
-
-fn sys_setup_render(
-    all_storages: AllStoragesView,
-    device: Res<Device>,
-    surface: Res<Surface>,
-) -> Result<(), wgpu::SurfaceError> {
-    let tools = RenderPassTools::new(device.inner(), surface.inner())?;
-
-    all_storages.add_unique(tools);
-
-    Ok(())
-}
-
-fn sys_finish_render(all_storages: AllStoragesView, queue: Res<Queue>) {
-    let tools = all_storages.remove_unique::<RenderPassTools>().unwrap();
-    tools.finish(queue.inner());
 }
 
 //====================================================================

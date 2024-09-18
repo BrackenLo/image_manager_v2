@@ -8,20 +8,17 @@ use std::{
 
 use ahash::{HashSet, HashSetExt};
 use shipyard::{AllStoragesView, IntoWorkload, Unique};
+use shipyard_tools::{prelude::*, UniqueTools};
 use winit::{event::MouseButton, keyboard::KeyCode};
 
-use crate::{
-    app::Stages,
-    shipyard_tools::{Plugin, Res, ResMut, UniqueTools},
-    window::WindowSize,
-};
+use crate::window::WindowSize;
 
 //====================================================================
 
 pub(crate) struct ToolsPlugin;
 
-impl Plugin<Stages> for ToolsPlugin {
-    fn build(&self, workload_builder: &mut crate::shipyard_tools::WorkloadBuilder<Stages>) {
+impl Plugin for ToolsPlugin {
+    fn build(self, workload_builder: WorkloadBuilder) -> WorkloadBuilder {
         workload_builder
             .add_workload(Stages::Setup, (sys_setup_uniques).into_workload())
             .add_workload(Stages::First, (sys_update_time).into_workload())
@@ -33,7 +30,7 @@ impl Plugin<Stages> for ToolsPlugin {
                     sys_reset_mouse_input,
                 )
                     .into_workload(),
-            );
+            )
     }
 }
 
