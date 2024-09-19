@@ -1,13 +1,15 @@
 //====================================================================
 
 use shipyard::Unique;
-use wgpu::util::DeviceExt;
-
-use super::{
-    shared::{RawTextureVertex, TEXTURE_INDICES, TEXTURE_VERTICES},
-    texture::Gif,
+use shipyard_renderer::{
+    shared::{
+        TextureRectVertex, TEXTURE_RECT_INDEX_COUNT, TEXTURE_RECT_INDICES, TEXTURE_RECT_VERTICES,
+    },
     tools, Vertex,
 };
+use wgpu::util::DeviceExt;
+
+use super::gif::Gif;
 
 //====================================================================
 
@@ -116,15 +118,15 @@ impl Gif2dPipeline {
                 &texture_bind_group_layout,
                 &texture_instance_bind_group_layout,
             ],
-            &[RawTextureVertex::desc()],
+            &[TextureRectVertex::desc()],
             include_str!("gif2d_shader.wgsl"),
             tools::RenderPipelineDescriptor::default().with_depth_stencil(),
         );
 
-        let vertex_buffer = tools::vertex_buffer(&device, "Gif2d Pipeline", &TEXTURE_VERTICES);
+        let vertex_buffer = tools::vertex_buffer(&device, "Gif2d Pipeline", &TEXTURE_RECT_VERTICES);
 
-        let index_buffer = tools::index_buffer(&device, "Gif2d Pipeline", &TEXTURE_INDICES);
-        let index_count = TEXTURE_INDICES.len() as u32;
+        let index_buffer = tools::index_buffer(&device, "Gif2d Pipeline", &TEXTURE_RECT_INDICES);
+        let index_count = TEXTURE_RECT_INDEX_COUNT;
 
         Self {
             pipeline,

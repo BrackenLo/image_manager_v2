@@ -6,16 +6,13 @@ use shipyard::{
     AllStoragesView, AllStoragesViewMut, EntitiesViewMut, EntityId, Get, IntoWorkload, Unique,
     ViewMut,
 };
+use shipyard_renderer::text2d_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline};
+use shipyard_runner::tools::{MouseInput, Time};
 use shipyard_tools::{Plugin, Res, ResMut, Stages, SubStages};
 
 use crate::{
     images::Pos,
-    renderer::{
-        camera::{Camera, MainCamera},
-        circle_pipeline::Circle,
-        text_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
-    },
-    tools::{MouseInput, Time},
+    renderer::{camera::MainCamera, circle_pipeline::Circle},
 };
 
 //====================================================================
@@ -165,7 +162,7 @@ fn sys_setup_mouse_tracker(
 
 fn sys_update_mouse_tracker(
     tracker: ResMut<MouseTracker>,
-    camera: Res<Camera<MainCamera>>,
+    camera: Res<MainCamera>,
     mouse: Res<MouseInput>,
 
     mut text_pipeline: ResMut<TextPipeline>,

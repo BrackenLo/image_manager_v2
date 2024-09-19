@@ -6,14 +6,11 @@ use shipyard::{
     AllStoragesViewMut, Borrow, BorrowInfo, Component, EntitiesViewMut, EntityId, IntoIter,
     IntoWithId, IntoWorkload, View, ViewMut,
 };
+use shipyard_shared::Size;
 use shipyard_tools::{Plugin, Stages};
 
-use crate::{
-    renderer::{
-        gif2d_pipeline::Gif2dInstance, texture::GifFrameDelay,
-        texture2d_pipeline::Texture2dInstance,
-    },
-    tools::Size,
+use crate::renderer::{
+    gif::GifFrameDelay, gif2d_pipeline::Gif2dInstance, texture2d_pipeline::Texture2dInstance,
 };
 
 //====================================================================

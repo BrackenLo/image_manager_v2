@@ -1,12 +1,16 @@
 //====================================================================
 
-use glyphon::Metrics;
 use shipyard::{
     AllStoragesView, EntitiesView, EntityId, Get, IntoIter, IntoWithId, IntoWorkload, Remove,
     Unique, View, ViewMut,
 };
+use shipyard_renderer::{
+    text2d_pipeline::{Metrics, TextBuffer, TextPipeline},
+    Device, Queue,
+};
+use shipyard_runner::tools::{Input, KeyCode, MouseButton, MouseInput, Time};
+use shipyard_shared::{WindowResizeEvent, WindowSize};
 use shipyard_tools::{prelude::*, UniqueTools};
-use winit::{event::MouseButton, keyboard::KeyCode};
 
 use crate::{
     images::{
@@ -14,15 +18,12 @@ use crate::{
         ImageIndex, ImageMeta, ImageSelected, ImageShown, ImageSize, Pos, StandardImage, ToRemove,
     },
     renderer::{
-        camera::{Camera, MainCamera},
+        camera::MainCamera,
         gif2d_pipeline::{Gif2dInstance, Gif2dInstanceRaw, Gif2dPipeline},
-        text_pipeline::{TextBuffer, TextPipeline},
         texture2d_pipeline::{Texture2dInstance, Texture2dInstanceRaw, Texture2dPipeline},
-        Device, Queue,
     },
     storage::Storage,
-    tools::{aabb_point, Input, MouseInput, Time},
-    window::{ResizeEvent, WindowSize},
+    tools::aabb_point,
 };
 
 //====================================================================
@@ -58,7 +59,7 @@ impl Plugin for LayoutPlugin {
                     .into_sequential_workload(),
             )
             //
-            .add_event::<ResizeEvent>(
+            .add_event::<WindowResizeEvent>(
                 (sys_resize_layout, sys_resize_selected, sys_reposition_text)
                     .into_sequential_workload(),
             )
@@ -159,7 +160,7 @@ fn sys_resize_layout(
     mut layout: ResMut<LayoutManager>,
     mut image_dirtier: ImageDirtier,
 
-    mut camera: ResMut<Camera<MainCamera>>,
+    mut camera: ResMut<MainCamera>,
 ) {
     layout.width = match layout.selected {
         true => size.width_f32() / 2.,
@@ -319,7 +320,7 @@ fn sys_tick_gifs(
 fn sys_reposition_text_dirty(
     layout: Res<LayoutManager>,
     size: Res<WindowSize>,
-    camera: Res<Camera<MainCamera>>,
+    camera: Res<MainCamera>,
     mut pipeline: ResMut<TextPipeline>,
 
     v_pos: View<Pos>,
@@ -364,7 +365,7 @@ fn sys_reposition_text_dirty(
 fn sys_reposition_text(
     layout: Res<LayoutManager>,
     size: Res<WindowSize>,
-    camera: Res<Camera<MainCamera>>,
+    camera: Res<MainCamera>,
     mut pipeline: ResMut<TextPipeline>,
 
     v_pos: View<Pos>,
@@ -463,7 +464,7 @@ fn sys_navigate_layout(
     window_size: Res<WindowSize>,
     mut layout: ResMut<LayoutManager>,
     navigation: Res<LayoutNavigation>,
-    mut camera: ResMut<Camera<MainCamera>>,
+    mut camera: ResMut<MainCamera>,
 
     keys: Res<Input<KeyCode>>,
     mouse: Res<MouseInput>,
@@ -569,7 +570,7 @@ fn sys_navigate_layout(
 
 fn sys_hover_images(
     layout: Res<LayoutManager>,
-    camera: Res<Camera<MainCamera>>,
+    camera: Res<MainCamera>,
     mouse: Res<MouseInput>,
 
     v_pos: View<Pos>,

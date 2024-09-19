@@ -1,15 +1,15 @@
 //====================================================================
 
 use shipyard::Unique;
+use shipyard_renderer::{
+    shared::{
+        TextureRectVertex, TEXTURE_RECT_INDEX_COUNT, TEXTURE_RECT_INDICES, TEXTURE_RECT_VERTICES,
+    },
+    texture, tools, Vertex,
+};
 use wgpu::util::DeviceExt;
 
 use crate::tools::Rect;
-
-use super::{
-    shared::{RawTextureVertex, TEXTURE_INDICES, TEXTURE_VERTICES},
-    texture::Texture,
-    tools, Vertex,
-};
 
 //====================================================================
 
@@ -33,7 +33,7 @@ impl Texture2dInstance {
         device: &wgpu::Device,
         pipeline: &Texture2dPipeline,
         data: Texture2dInstanceRaw,
-        texture: &Texture,
+        texture: &texture::Texture,
     ) -> Self {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Texture Instance"),
@@ -111,15 +111,16 @@ impl Texture2dPipeline {
                 &texture_bind_group_layout,
                 &texture_instance_bind_group_layout,
             ],
-            &[RawTextureVertex::desc()],
+            &[TextureRectVertex::desc()],
             include_str!("texture_shader.wgsl"),
             tools::RenderPipelineDescriptor::default().with_depth_stencil(),
         );
 
-        let vertex_buffer = tools::vertex_buffer(&device, "Texture Pipeline", &TEXTURE_VERTICES);
+        let vertex_buffer =
+            tools::vertex_buffer(&device, "Texture Pipeline", &TEXTURE_RECT_VERTICES);
 
-        let index_buffer = tools::index_buffer(&device, "Texture Pipeline", &TEXTURE_INDICES);
-        let index_count = TEXTURE_INDICES.len() as u32;
+        let index_buffer = tools::index_buffer(&device, "Texture Pipeline", &TEXTURE_RECT_INDICES);
+        let index_count = TEXTURE_RECT_INDEX_COUNT;
 
         Self {
             pipeline,
@@ -131,7 +132,7 @@ impl Texture2dPipeline {
         }
     }
 
-    pub fn load_texture(&self, device: &wgpu::Device, data: &Texture) -> wgpu::BindGroup {
+    pub fn load_texture(&self, device: &wgpu::Device, data: &texture::Texture) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("TextureBindGroup"),
             layout: &self.texture_bind_group_layout,

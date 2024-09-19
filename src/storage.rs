@@ -13,22 +13,24 @@ use image::{
     codecs::gif::GifDecoder, AnimationDecoder, DynamicImage, GenericImage, GenericImageView,
 };
 use shipyard::{AllStoragesView, IntoWorkload, SystemModificator, Unique, ViewMut, Workload};
+use shipyard_renderer::{
+    text2d_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
+    texture, Device, Queue,
+};
+use shipyard_shared::Size;
 use shipyard_tools::prelude::*;
 
 use crate::{
     images::{GifImage, ImageCreator, ImageIndex, ImageMeta, StandardImage},
     layout::LayoutManager,
     renderer::{
-        gif2d_pipeline::{Gif2dInstance, Gif2dInstanceRaw, Gif2dPipeline},
-        text_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
-        texture::{
-            Gif, Texture, MAX_TEXTURE_HEIGHT, MAX_TEXTURE_WIDTH, MAX_USABLE_IMAGE_HEIGHT,
+        gif::{
+            Gif, MAX_TEXTURE_HEIGHT, MAX_TEXTURE_WIDTH, MAX_USABLE_IMAGE_HEIGHT,
             MAX_USABLE_IMAGE_WIDTH,
         },
+        gif2d_pipeline::{Gif2dInstance, Gif2dInstanceRaw, Gif2dPipeline},
         texture2d_pipeline::{Texture2dInstance, Texture2dInstanceRaw, Texture2dPipeline},
-        Device, Queue,
     },
-    tools::Size,
 };
 
 //====================================================================
@@ -107,7 +109,7 @@ pub struct TextureData {
 }
 
 pub enum TextureType {
-    Texture(Texture),
+    Texture(texture::Texture),
     Gif { gif: Gif, frames: Vec<Duration> },
 }
 
@@ -411,8 +413,13 @@ fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: R
         let texture_data = match storage.image_receiver.try_recv() {
             Ok(image) => match image {
                 ImageChannel::Image { path, image } => {
-                    let texture =
-                        Texture::from_image(device.inner(), queue.inner(), &image, None, None);
+                    let texture = texture::Texture::from_image(
+                        device.inner(),
+                        queue.inner(),
+                        &image,
+                        None,
+                        None,
+                    );
 
                     let resolution = image.dimensions().into();
 

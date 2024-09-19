@@ -1,15 +1,14 @@
 //====================================================================
 
 use shipyard::{Component, IntoIter, Unique, View};
+use shipyard_renderer::{
+    tools::{self, create_pipeline, RenderPipelineDescriptor},
+    Device, Queue, Vertex,
+};
 use shipyard_tools::{Res, ResMut};
 use wgpu::util::DeviceExt;
 
 use crate::images::Pos;
-
-use super::{
-    tools::{self},
-    Device, Queue, Vertex,
-};
 
 //====================================================================
 
@@ -112,7 +111,7 @@ impl CirclePipeline {
         config: &wgpu::SurfaceConfiguration,
         camera_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> Self {
-        let pipeline = tools::create_pipeline(
+        let pipeline = create_pipeline(
             device,
             config,
             "Circle Pipeline",
@@ -127,7 +126,9 @@ impl CirclePipeline {
             //     })]),
             //     ..Default::default()
             // },
-            tools::RenderPipelineDescriptor::default().with_depth_stencil(),
+            RenderPipelineDescriptor::default()
+                .with_depth_stencil()
+                .with_backface_culling(),
         );
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
