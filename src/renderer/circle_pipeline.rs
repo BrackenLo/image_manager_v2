@@ -1,11 +1,13 @@
 //====================================================================
 
-use shipyard::{Component, IntoIter, Unique, View};
-use shipyard_renderer::{
-    tools::{self, create_pipeline, RenderPipelineDescriptor},
-    Device, Queue, Vertex,
+use cabat::{
+    renderer::{
+        render_tools::{self, RenderPipelineDescriptor},
+        Device, Queue, Vertex,
+    },
+    shipyard_tools::{Res, ResMut},
 };
-use shipyard_tools::{Res, ResMut};
+use shipyard::{Component, IntoIter, Unique, View};
 use wgpu::util::DeviceExt;
 
 use crate::images::Pos;
@@ -111,7 +113,7 @@ impl CirclePipeline {
         config: &wgpu::SurfaceConfiguration,
         camera_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> Self {
-        let pipeline = create_pipeline(
+        let pipeline = render_tools::create_pipeline(
             device,
             config,
             "Circle Pipeline",
@@ -179,7 +181,7 @@ impl CirclePipeline {
         queue: &wgpu::Queue,
         instances: &[RawCircleInstance],
     ) {
-        tools::update_instance_buffer(
+        render_tools::update_instance_buffer(
             device,
             queue,
             "Circle Pipeline Instance Buffer",

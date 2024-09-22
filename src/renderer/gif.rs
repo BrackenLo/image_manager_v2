@@ -2,8 +2,8 @@
 
 use std::{collections::HashMap, ops::Range, time::Duration};
 
+use cabat::renderer::texture;
 use image::DynamicImage;
-use shipyard_renderer::texture;
 use wgpu::util::DeviceExt;
 
 //====================================================================

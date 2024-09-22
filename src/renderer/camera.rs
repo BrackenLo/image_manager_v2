@@ -1,12 +1,11 @@
 //====================================================================
 
-use shipyard::{AllStoragesView, Unique};
-use shipyard_renderer::{
-    camera::{Camera, OrthographicCamera},
-    Device, Queue,
+use cabat::{
+    common::WindowSize,
+    renderer::{Camera, Device, OrthographicCamera, Queue},
+    shipyard_tools::{Res, ResMut, UniqueTools},
 };
-use shipyard_shared::WindowSize;
-use shipyard_tools::{Res, ResMut, UniqueTools};
+use shipyard::{AllStoragesView, Unique};
 
 //====================================================================
 

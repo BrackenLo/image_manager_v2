@@ -1,12 +1,13 @@
 //====================================================================
 
-use shipyard::Unique;
-use shipyard_renderer::{
+use cabat::renderer::{
+    render_tools,
     shared::{
         TextureRectVertex, TEXTURE_RECT_INDEX_COUNT, TEXTURE_RECT_INDICES, TEXTURE_RECT_VERTICES,
     },
-    tools, Vertex,
+    Vertex,
 };
+use shipyard::Unique;
 use wgpu::util::DeviceExt;
 
 use super::gif::Gif;
@@ -94,22 +95,22 @@ impl Gif2dPipeline {
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Gif2d Bind Group Layout"),
                 entries: &[
-                    tools::bgl_texture_entry(0),
-                    tools::bgl_sampler_entry(1),
-                    tools::bgl_uniform_entry(2, wgpu::ShaderStages::FRAGMENT),
+                    render_tools::bgl_texture_entry(0),
+                    render_tools::bgl_sampler_entry(1),
+                    render_tools::bgl_uniform_entry(2, wgpu::ShaderStages::FRAGMENT),
                 ],
             });
 
         let texture_instance_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Gif2d Instance Bind Group Layout"),
-                entries: &[tools::bgl_uniform_entry(
+                entries: &[render_tools::bgl_uniform_entry(
                     0,
                     wgpu::ShaderStages::VERTEX_FRAGMENT,
                 )],
             });
 
-        let pipeline = tools::create_pipeline(
+        let pipeline = render_tools::create_pipeline(
             &device,
             &config,
             "Gif2d Pipeline",
@@ -120,12 +121,14 @@ impl Gif2dPipeline {
             ],
             &[TextureRectVertex::desc()],
             include_str!("gif2d_shader.wgsl"),
-            tools::RenderPipelineDescriptor::default().with_depth_stencil(),
+            render_tools::RenderPipelineDescriptor::default().with_depth_stencil(),
         );
 
-        let vertex_buffer = tools::vertex_buffer(&device, "Gif2d Pipeline", &TEXTURE_RECT_VERTICES);
+        let vertex_buffer =
+            render_tools::vertex_buffer(&device, "Gif2d Pipeline", &TEXTURE_RECT_VERTICES);
 
-        let index_buffer = tools::index_buffer(&device, "Gif2d Pipeline", &TEXTURE_RECT_INDICES);
+        let index_buffer =
+            render_tools::index_buffer(&device, "Gif2d Pipeline", &TEXTURE_RECT_INDICES);
         let index_count = TEXTURE_RECT_INDEX_COUNT;
 
         Self {

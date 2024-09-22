@@ -2,12 +2,13 @@
 
 use std::time::Duration;
 
+use cabat::{common::Size, shipyard_tools::prelude::*};
 use shipyard::{
     AllStoragesViewMut, Borrow, BorrowInfo, Component, EntitiesViewMut, EntityId, IntoIter,
     IntoWithId, IntoWorkload, View, ViewMut,
 };
-use shipyard_shared::Size;
-use shipyard_tools::{Plugin, Stages};
+// use shipyard_shared::Size;
+// use shipyard_tools::{Plugin, Stages};
 
 use crate::renderer::{
     gif::GifFrameDelay, gif2d_pipeline::Gif2dInstance, texture2d_pipeline::Texture2dInstance,
@@ -18,10 +19,7 @@ use crate::renderer::{
 pub(crate) struct ImagePlugin;
 
 impl Plugin for ImagePlugin {
-    fn build(
-        self,
-        workload_builder: shipyard_tools::WorkloadBuilder,
-    ) -> shipyard_tools::WorkloadBuilder {
+    fn build(self, workload_builder: WorkloadBuilder) -> WorkloadBuilder {
         workload_builder.add_workload(
             Stages::Last,
             (sys_remove_pending, sys_clear_dirty).into_workload(),

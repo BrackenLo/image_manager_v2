@@ -1,12 +1,14 @@
 //====================================================================
 
+use cabat::{
+    common::WindowResizeEvent,
+    renderer::{Device, RenderPass, SurfaceConfig},
+    shipyard_tools::{prelude::*, UniqueTools},
+};
 use camera::{sys_resize_camera, sys_setup_camera, sys_update_camera, MainCamera, UiCamera};
 use circle_pipeline::{sys_update_circle_pipeline, CirclePipeline};
 use gif2d_pipeline::Gif2dPipeline;
 use shipyard::{AllStoragesView, IntoIter, IntoWorkload, View};
-use shipyard_renderer::{Device, RenderPass, SurfaceConfig};
-use shipyard_shared::WindowResizeEvent;
-use shipyard_tools::{prelude::*, UniqueTools};
 use texture2d_pipeline::Texture2dPipeline;
 
 use crate::images::{GifImage, ImageShown, StandardImage};
@@ -22,10 +24,7 @@ pub mod texture2d_pipeline;
 pub(crate) struct CustomRendererPlugin;
 
 impl Plugin for CustomRendererPlugin {
-    fn build(
-        self,
-        workload_builder: shipyard_tools::WorkloadBuilder,
-    ) -> shipyard_tools::WorkloadBuilder {
+    fn build(self, workload_builder: WorkloadBuilder) -> WorkloadBuilder {
         workload_builder
             .add_workload_sub(
                 Stages::Setup,

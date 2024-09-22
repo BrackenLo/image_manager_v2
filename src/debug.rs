@@ -2,13 +2,15 @@
 
 use std::time::Duration;
 
+use cabat::{
+    renderer::text2d_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
+    runner::tools::{MouseInput, Time},
+    shipyard_tools::prelude::*,
+};
 use shipyard::{
     AllStoragesView, AllStoragesViewMut, EntitiesViewMut, EntityId, Get, IntoWorkload, Unique,
     ViewMut,
 };
-use shipyard_renderer::text2d_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline};
-use shipyard_runner::tools::{MouseInput, Time};
-use shipyard_tools::{Plugin, Res, ResMut, Stages, SubStages};
 
 use crate::{
     images::Pos,
@@ -20,10 +22,7 @@ use crate::{
 pub(crate) struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
-    fn build(
-        self,
-        workload_builder: shipyard_tools::WorkloadBuilder,
-    ) -> shipyard_tools::WorkloadBuilder {
+    fn build(self, workload_builder: WorkloadBuilder) -> WorkloadBuilder {
         workload_builder
             .add_workload(
                 Stages::Setup,

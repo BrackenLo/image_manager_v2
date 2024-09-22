@@ -1,12 +1,13 @@
 //====================================================================
 
-use shipyard::Unique;
-use shipyard_renderer::{
+use cabat::renderer::{
+    render_tools,
     shared::{
         TextureRectVertex, TEXTURE_RECT_INDEX_COUNT, TEXTURE_RECT_INDICES, TEXTURE_RECT_VERTICES,
     },
-    texture, tools, Vertex,
+    texture, Vertex,
 };
+use shipyard::Unique;
 use wgpu::util::DeviceExt;
 
 use crate::tools::Rect;
@@ -90,19 +91,22 @@ impl Texture2dPipeline {
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Texture Bind Group Layout"),
-                entries: &[tools::bgl_texture_entry(0), tools::bgl_sampler_entry(1)],
+                entries: &[
+                    render_tools::bgl_texture_entry(0),
+                    render_tools::bgl_sampler_entry(1),
+                ],
             });
 
         let texture_instance_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Texture Instance Bind Group Layout"),
-                entries: &[tools::bgl_uniform_entry(
+                entries: &[render_tools::bgl_uniform_entry(
                     0,
                     wgpu::ShaderStages::VERTEX_FRAGMENT,
                 )],
             });
 
-        let pipeline = tools::create_pipeline(
+        let pipeline = render_tools::create_pipeline(
             &device,
             &config,
             "Texture Pipeline",
@@ -113,13 +117,14 @@ impl Texture2dPipeline {
             ],
             &[TextureRectVertex::desc()],
             include_str!("texture_shader.wgsl"),
-            tools::RenderPipelineDescriptor::default().with_depth_stencil(),
+            render_tools::RenderPipelineDescriptor::default().with_depth_stencil(),
         );
 
         let vertex_buffer =
-            tools::vertex_buffer(&device, "Texture Pipeline", &TEXTURE_RECT_VERTICES);
+            render_tools::vertex_buffer(&device, "Texture Pipeline", &TEXTURE_RECT_VERTICES);
 
-        let index_buffer = tools::index_buffer(&device, "Texture Pipeline", &TEXTURE_RECT_INDICES);
+        let index_buffer =
+            render_tools::index_buffer(&device, "Texture Pipeline", &TEXTURE_RECT_INDICES);
         let index_count = TEXTURE_RECT_INDEX_COUNT;
 
         Self {

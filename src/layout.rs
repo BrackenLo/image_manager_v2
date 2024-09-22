@@ -1,16 +1,18 @@
 //====================================================================
 
+use cabat::{
+    common::{WindowResizeEvent, WindowSize},
+    renderer::{
+        text2d_pipeline::{Metrics, TextBuffer, TextPipeline},
+        Device, Queue,
+    },
+    runner::tools::{Input, KeyCode, MouseButton, MouseInput, Time},
+    shipyard_tools::{prelude::*, UniqueTools},
+};
 use shipyard::{
     AllStoragesView, EntitiesView, EntityId, Get, IntoIter, IntoWithId, IntoWorkload, Remove,
     Unique, View, ViewMut,
 };
-use shipyard_renderer::{
-    text2d_pipeline::{Metrics, TextBuffer, TextPipeline},
-    Device, Queue,
-};
-use shipyard_runner::tools::{Input, KeyCode, MouseButton, MouseInput, Time};
-use shipyard_shared::{WindowResizeEvent, WindowSize};
-use shipyard_tools::{prelude::*, UniqueTools};
 
 use crate::{
     images::{
@@ -31,10 +33,7 @@ use crate::{
 pub(crate) struct LayoutPlugin;
 
 impl Plugin for LayoutPlugin {
-    fn build(
-        self,
-        workload_builder: shipyard_tools::WorkloadBuilder,
-    ) -> shipyard_tools::WorkloadBuilder {
+    fn build(self, workload_builder: WorkloadBuilder) -> WorkloadBuilder {
         workload_builder
             .add_workload(Stages::Setup, (sys_setup_layout).into_workload())
             .add_workload(

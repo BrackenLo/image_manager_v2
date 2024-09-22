@@ -1,11 +1,14 @@
 //====================================================================
 
+use cabat::{
+    runner::{AppBuilder, DefaultInner, Runner},
+    shipyard_tools::WorkloadBuilder,
+    DefaultPlugins,
+};
 use debug::DebugPlugin;
 use images::ImagePlugin;
 use layout::LayoutPlugin;
 use renderer::CustomRendererPlugin;
-use shipyard_renderer::RendererPlugin;
-use shipyard_runner::{tools::ToolsPlugin, AppBuilder, DefaultInner, Runner};
 use storage::StoragePlugin;
 
 pub(crate) mod debug;
@@ -24,10 +27,7 @@ fn main() {
 
     env_logger::Builder::new()
         .filter_module("wgpu", log::LevelFilter::Warn)
-        .filter_module("shipyard_tools", log::LevelFilter::Trace)
-        .filter_module("shipyard_renderer", log::LevelFilter::Trace)
-        .filter_module("shipyard_shared", log::LevelFilter::Trace)
-        .filter_module("shipyard_runner", log::LevelFilter::Trace)
+        .filter_module("cabat", log::LevelFilter::Trace)
         .filter_module(NAME, log::LevelFilter::Trace)
         .format_timestamp(None)
         .init();
@@ -39,10 +39,11 @@ fn main() {
 
 pub struct App;
 impl AppBuilder for App {
-    fn build(builder: shipyard_tools::WorkloadBuilder) -> shipyard_tools::WorkloadBuilder {
+    fn build(builder: WorkloadBuilder) -> WorkloadBuilder {
         builder
-            .add_plugin(ToolsPlugin)
-            .add_plugin(RendererPlugin)
+            .add_plugin(DefaultPlugins)
+            // .add_plugin(ToolsPlugin)
+            // .add_plugin(RendererPlugin)
             .add_plugin(CustomRendererPlugin)
             .add_plugin(DebugPlugin)
             .add_plugin(StoragePlugin)

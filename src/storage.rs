@@ -8,17 +8,19 @@ use std::{
 };
 
 use ahash::AHashMap;
+use cabat::{
+    common::Size,
+    renderer::{
+        text2d_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
+        texture, Device, Queue,
+    },
+    shipyard_tools::prelude::*,
+};
 use crossbeam_channel::{Receiver, Sender};
 use image::{
     codecs::gif::GifDecoder, AnimationDecoder, DynamicImage, GenericImage, GenericImageView,
 };
 use shipyard::{AllStoragesView, IntoWorkload, SystemModificator, Unique, ViewMut, Workload};
-use shipyard_renderer::{
-    text2d_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
-    texture, Device, Queue,
-};
-use shipyard_shared::Size;
-use shipyard_tools::prelude::*;
 
 use crate::{
     images::{GifImage, ImageCreator, ImageIndex, ImageMeta, StandardImage},
@@ -62,7 +64,7 @@ fn sys_setup_storage(all_storages: AllStoragesView, mut events: ResMut<EventHand
     all_storages.add_unique(Storage::new());
 
     let args: Vec<String> = env::args().collect();
-    log::trace!("Args {:?}", args);
+    log::debug!("Args {:?}", args);
 
     let path = match args.get(1) {
         Some(arg) => {
@@ -211,6 +213,8 @@ fn load_images(
     load_kill_receiver: Receiver<bool>,
     image_sender: Sender<ImageChannel>,
 ) {
+    let duration = std::time::Instant::now();
+
     for path in images.into_iter() {
         let data = match path.extension() {
             None => {
@@ -278,7 +282,10 @@ fn load_images(
         image_sender.send(data).unwrap();
     }
 
-    log::info!("Finished loading images");
+    log::info!(
+        "Finished loading images - took {:.3} seconds",
+        duration.elapsed().as_secs_f32()
+    );
     image_sender.send(ImageChannel::Finished).unwrap();
 }
 
