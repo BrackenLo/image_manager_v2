@@ -34,7 +34,7 @@ impl Texture2dInstance {
         device: &wgpu::Device,
         pipeline: &Texture2dPipeline,
         data: Texture2dInstanceRaw,
-        texture: &texture::Texture,
+        texture: &texture::RawTexture,
     ) -> Self {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Texture Instance"),
@@ -137,7 +137,11 @@ impl Texture2dPipeline {
         }
     }
 
-    pub fn load_texture(&self, device: &wgpu::Device, data: &texture::Texture) -> wgpu::BindGroup {
+    pub fn load_texture(
+        &self,
+        device: &wgpu::Device,
+        data: &texture::RawTexture,
+    ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("TextureBindGroup"),
             layout: &self.texture_bind_group_layout,

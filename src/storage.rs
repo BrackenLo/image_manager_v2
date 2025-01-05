@@ -11,7 +11,7 @@ use ahash::AHashMap;
 use cabat::{
     common::Size,
     renderer::{
-        text2d_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
+        text::{Text2dBuffer, Text2dBufferDescriptor, TextFontSystem},
         texture, Device, Queue,
     },
     shipyard_tools::prelude::*,
@@ -20,7 +20,7 @@ use crossbeam_channel::{Receiver, Sender};
 use image::{
     codecs::gif::GifDecoder, AnimationDecoder, DynamicImage, GenericImage, GenericImageView,
 };
-use shipyard::{AllStoragesView, IntoWorkload, SystemModificator, Unique, ViewMut, Workload};
+use shipyard::{AllStoragesView, SystemModificator, Unique, ViewMut, Workload};
 
 use crate::{
     images::{GifImage, ImageCreator, ImageIndex, ImageMeta, StandardImage},
@@ -40,23 +40,17 @@ use crate::{
 pub(crate) struct StoragePlugin;
 
 impl Plugin for StoragePlugin {
-    fn build(self, workload_builder: WorkloadBuilder) -> WorkloadBuilder {
+    fn build(self, workload_builder: &WorkloadBuilder) {
         workload_builder
-            .add_workload_sub(
-                Stages::Setup,
-                SubStages::Pre,
-                (sys_setup_storage).into_workload(),
-            )
-            .add_workload_sub(
+            .add_workload_pre(Stages::Setup, sys_setup_storage)
+            .add_workload_pre(
                 Stages::Update,
-                SubStages::Pre,
                 (
                     sys_process_new_images.run_if(sys_check_loading),
                     sys_spawn_new_images.run_if(sys_check_pending),
-                )
-                    .into_workload(),
+                ),
             )
-            .add_event::<LoadFolderEvent>(Workload::new("").with_system(sys_load_path))
+            .add_event::<LoadFolderEvent>(Workload::new("").with_system(sys_load_path));
     }
 }
 
@@ -111,7 +105,7 @@ pub struct TextureData {
 }
 
 pub enum TextureType {
-    Texture(texture::Texture),
+    Texture(texture::RawTexture),
     Gif { gif: Gif, frames: Vec<Duration> },
 }
 
@@ -420,7 +414,7 @@ fn sys_process_new_images(device: Res<Device>, queue: Res<Queue>, mut storage: R
         let texture_data = match storage.image_receiver.try_recv() {
             Ok(image) => match image {
                 ImageChannel::Image { path, image } => {
-                    let texture = texture::Texture::from_image(
+                    let texture = texture::RawTexture::from_image(
                         device.inner(),
                         queue.inner(),
                         &image,
@@ -502,14 +496,14 @@ fn sys_spawn_new_images(
     device: Res<Device>,
     texture_pipeline: Res<Texture2dPipeline>,
     gif_pipeline: Res<Gif2dPipeline>,
-    mut text_pipeline: ResMut<TextPipeline>,
+    mut font_system: ResMut<TextFontSystem>,
 
     mut storage: ResMut<Storage>,
     mut layout: ResMut<LayoutManager>,
 
     mut image_creator: ImageCreator,
     mut vm_indexed: ViewMut<ImageIndex>,
-    mut vm_text: ViewMut<TextBuffer>,
+    mut vm_text: ViewMut<Text2dBuffer>,
 ) {
     storage.to_spawn.iter().for_each(|id| {
         let texture = storage.textures.get(id).unwrap();
@@ -558,9 +552,9 @@ fn sys_spawn_new_images(
             (&mut vm_indexed, &mut vm_text),
             (
                 ImageIndex { index },
-                TextBuffer::new(
-                    &mut text_pipeline,
-                    &TextBufferDescriptor::new_text(
+                Text2dBuffer::new(
+                    font_system.inner_mut(),
+                    &Text2dBufferDescriptor::new_text(
                         texture.path.file_name().unwrap().to_str().unwrap(),
                     ),
                 ),

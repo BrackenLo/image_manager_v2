@@ -1,10 +1,6 @@
 //====================================================================
 
-use cabat::{
-    runner::{AppBuilder, DefaultInner, Runner},
-    shipyard_tools::WorkloadBuilder,
-    DefaultPlugins,
-};
+use cabat::{runner::Runner, DefaultPlugins};
 use debug::DebugPlugin;
 use images::ImagePlugin;
 use layout::LayoutPlugin;
@@ -32,14 +28,7 @@ fn main() {
         .format_timestamp(None)
         .init();
 
-    Runner::<DefaultInner<App>>::new().run();
-}
-
-//====================================================================
-
-pub struct App;
-impl AppBuilder for App {
-    fn build(builder: WorkloadBuilder) -> WorkloadBuilder {
+    Runner::run(|builder| {
         builder
             .add_plugin(DefaultPlugins)
             // .add_plugin(ToolsPlugin)
@@ -48,8 +37,8 @@ impl AppBuilder for App {
             .add_plugin(DebugPlugin)
             .add_plugin(StoragePlugin)
             .add_plugin(LayoutPlugin)
-            .add_plugin(ImagePlugin)
-    }
+            .add_plugin(ImagePlugin);
+    });
 }
 
 //====================================================================

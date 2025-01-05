@@ -72,7 +72,7 @@ impl GifFrameDelay {
 }
 
 pub struct Gif {
-    pub texture: texture::Texture,
+    pub texture: texture::RawTexture,
     pub buffer: wgpu::Buffer,
     pub total_frames: u32,
     pub frames_per_row: u32,
@@ -100,7 +100,7 @@ impl Gif {
         frame_width: u32,
         frame_height: u32,
     ) -> Self {
-        let texture = texture::Texture::from_image(device, queue, &image, None, None);
+        let texture = texture::RawTexture::from_image(device, queue, &image, None, None);
 
         let texture_width = frame_width * frames_per_row;
         let sample_width = frame_width as f32 / texture_width as f32;

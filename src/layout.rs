@@ -3,7 +3,7 @@
 use cabat::{
     common::{WindowResizeEvent, WindowSize},
     renderer::{
-        text2d_pipeline::{Metrics, TextBuffer, TextPipeline},
+        text::{Metrics, Text2dBuffer, TextFontSystem},
         Device, Queue,
     },
     runner::tools::{Input, KeyCode, MouseButton, MouseInput, Time},
@@ -33,20 +33,18 @@ use crate::{
 pub(crate) struct LayoutPlugin;
 
 impl Plugin for LayoutPlugin {
-    fn build(self, workload_builder: WorkloadBuilder) -> WorkloadBuilder {
+    fn build(self, workload_builder: &WorkloadBuilder) {
         workload_builder
-            .add_workload(Stages::Setup, (sys_setup_layout).into_workload())
+            .add_workload(Stages::Setup, sys_setup_layout)
             .add_workload(
                 Stages::Update,
                 (
                     (sys_navigate_layout, sys_hover_images).into_sequential_workload(),
                     sys_select_images,
-                )
-                    .into_workload(),
+                ),
             )
-            .add_workload_sub(
+            .add_workload_post(
                 Stages::Update,
-                SubStages::Post,
                 (
                     sys_order_images,
                     sys_rebuild_images,
@@ -69,7 +67,7 @@ impl Plugin for LayoutPlugin {
                 )
                     .into_workload(),
             )
-            .add_event::<ScrollEvent>((sys_reposition_text).into_workload())
+            .add_event::<ScrollEvent>((sys_reposition_text).into_workload());
     }
 }
 
@@ -320,11 +318,11 @@ fn sys_reposition_text_dirty(
     layout: Res<LayoutManager>,
     size: Res<WindowSize>,
     camera: Res<MainCamera>,
-    mut pipeline: ResMut<TextPipeline>,
+    mut font_system: ResMut<TextFontSystem>,
 
     v_pos: View<Pos>,
     v_index: View<ImageIndex>,
-    mut vm_text: ViewMut<TextBuffer>,
+    mut vm_text: ViewMut<Text2dBuffer>,
     v_dirty: View<ImageDirty>,
 ) {
     if v_dirty.is_empty() {
@@ -353,7 +351,7 @@ fn sys_reposition_text_dirty(
             text.bounds.right = right;
 
             text.set_metrics_and_size(
-                &mut pipeline,
+                font_system.inner_mut(),
                 Metrics::relative(font_scale, 1.2),
                 Some(layout.tile_size.x),
                 Some(layout.tile_spacing.y),
@@ -365,11 +363,11 @@ fn sys_reposition_text(
     layout: Res<LayoutManager>,
     size: Res<WindowSize>,
     camera: Res<MainCamera>,
-    mut pipeline: ResMut<TextPipeline>,
+    mut font_system: ResMut<TextFontSystem>,
 
     v_pos: View<Pos>,
     v_index: View<ImageIndex>,
-    mut vm_text: ViewMut<TextBuffer>,
+    mut vm_text: ViewMut<Text2dBuffer>,
 ) {
     let top = 0;
     let bottom = size.height() as i32;
@@ -393,7 +391,7 @@ fn sys_reposition_text(
             text.bounds.right = right;
 
             text.set_metrics_and_size(
-                &mut pipeline,
+                font_system.inner_mut(),
                 Metrics::relative(font_scale, 1.2),
                 Some(layout.tile_size.x),
                 Some(layout.tile_spacing.y),
@@ -712,7 +710,7 @@ fn sys_process_selected(
                     device.inner(),
                     &texture_pipeline,
                     Texture2dInstanceRaw::default(),
-                    &texture,
+                    texture,
                 ),
             };
 

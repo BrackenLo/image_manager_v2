@@ -24,23 +24,21 @@ pub mod texture2d_pipeline;
 pub(crate) struct CustomRendererPlugin;
 
 impl Plugin for CustomRendererPlugin {
-    fn build(self, workload_builder: WorkloadBuilder) -> WorkloadBuilder {
+    fn build(self, workload_builder: &WorkloadBuilder) {
         workload_builder
-            .add_workload_sub(
+            .add_workload_pre(
                 Stages::Setup,
-                SubStages::Pre,
                 (sys_setup_camera, sys_setup_pipelines).into_sequential_workload(),
             )
-            .add_workload_sub(
+            .add_workload_last(
                 Stages::Update,
-                SubStages::Last,
-                (sys_update_circle_pipeline, sys_update_camera).into_workload(),
+                (sys_update_circle_pipeline, sys_update_camera),
             )
             .add_workload(
                 Stages::Render,
                 (sys_render_circles, sys_render_textures, sys_render_gifs).into_workload(),
             )
-            .add_event::<WindowResizeEvent>((sys_resize_camera).into_workload())
+            .add_event::<WindowResizeEvent>((sys_resize_camera).into_workload());
     }
 }
 

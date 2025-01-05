@@ -3,13 +3,12 @@
 use std::time::Duration;
 
 use cabat::{
-    renderer::text2d_pipeline::{TextBuffer, TextBufferDescriptor, TextPipeline},
+    renderer::text::{Text2dBuffer, Text2dBufferDescriptor, TextFontSystem},
     runner::tools::{MouseInput, Time},
     shipyard_tools::prelude::*,
 };
 use shipyard::{
-    AllStoragesView, AllStoragesViewMut, EntitiesViewMut, EntityId, Get, IntoWorkload, Unique,
-    ViewMut,
+    AllStoragesView, AllStoragesViewMut, EntitiesViewMut, EntityId, Get, Unique, ViewMut,
 };
 
 use crate::{
@@ -22,7 +21,7 @@ use crate::{
 pub(crate) struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
-    fn build(self, workload_builder: WorkloadBuilder) -> WorkloadBuilder {
+    fn build(self, workload_builder: &WorkloadBuilder) {
         workload_builder
             .add_workload(
                 Stages::Setup,
@@ -30,25 +29,18 @@ impl Plugin for DebugPlugin {
                     sys_setup_debug,
                     sys_setup_mouse_tracker,
                     sys_setup_debug_circles,
-                )
-                    .into_workload(),
+                ),
             )
-            .add_workload_sub(
-                Stages::Setup,
-                SubStages::Post,
-                (sys_display_memory_usage).into_workload(),
-            )
-            .add_workload_sub(
+            .add_workload_post(Stages::Setup, sys_display_memory_usage)
+            .add_workload_pre(
                 Stages::Update,
-                SubStages::Pre,
                 (
                     sys_tick_upkeep,
                     sys_update_mouse_tracker,
                     sys_spawn_debug_circles,
                     sys_despawn_debug_circles,
-                )
-                    .into_workload(),
-            )
+                ),
+            );
     }
 }
 
@@ -124,17 +116,17 @@ fn sys_setup_mouse_tracker(
     all_storages: AllStoragesView,
     mut entities: EntitiesViewMut,
 
-    mut text: ResMut<TextPipeline>,
-    mut vm_text_buffer: ViewMut<TextBuffer>,
+    mut font_system: ResMut<TextFontSystem>,
+    mut vm_text_buffer: ViewMut<Text2dBuffer>,
 
     mut vm_circles: ViewMut<Circle>,
     mut vm_pos: ViewMut<Pos>,
 ) {
     let text_id = entities.add_entity(
         &mut vm_text_buffer,
-        TextBuffer::new(
-            &mut text,
-            &TextBufferDescriptor {
+        Text2dBuffer::new(
+            font_system.inner_mut(),
+            &Text2dBufferDescriptor {
                 // bounds: todo!(),
                 // width: todo!(),
                 // height: todo!(),
@@ -164,8 +156,8 @@ fn sys_update_mouse_tracker(
     camera: Res<MainCamera>,
     mouse: Res<MouseInput>,
 
-    mut text_pipeline: ResMut<TextPipeline>,
-    mut vm_text_buffer: ViewMut<TextBuffer>,
+    mut font_system: ResMut<TextFontSystem>,
+    mut vm_text_buffer: ViewMut<Text2dBuffer>,
     mut vm_pos: ViewMut<Pos>,
 ) {
     let mouse_pos = camera.raw.screen_to_camera(mouse.screen_pos());
@@ -179,7 +171,7 @@ fn sys_update_mouse_tracker(
     );
 
     let mut buffer = (&mut vm_text_buffer).get(tracker.text_id).unwrap();
-    buffer.set_text(&mut text_pipeline, &text);
+    buffer.set_text(font_system.inner_mut(), &text);
 
     let mut pos = (&mut vm_pos).get(tracker.circle_id).unwrap();
     pos.x = mouse_pos.x;

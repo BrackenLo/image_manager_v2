@@ -19,11 +19,11 @@ use crate::renderer::{
 pub(crate) struct ImagePlugin;
 
 impl Plugin for ImagePlugin {
-    fn build(self, workload_builder: WorkloadBuilder) -> WorkloadBuilder {
+    fn build(self, workload_builder: &WorkloadBuilder) {
         workload_builder.add_workload(
             Stages::Last,
             (sys_remove_pending, sys_clear_dirty).into_workload(),
-        )
+        );
     }
 }
 

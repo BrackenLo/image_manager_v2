@@ -13,7 +13,8 @@ glam = "0.29.0"
 image = { version = "0.25.2", features = ["gif"] }
 log = "0.4.22"
 shipyard = "0.7.1"
-cabat.git = "http://192.168.68.104:3000/BrackenLo/cabat.git"
+# cabat.git = "http://192.168.68.104:3000/BrackenLo/cabat.git"
+cabat.git = "https://github.com/BrackenLo/cabat.git"
 wgpu = "22.1.0"
 
 [profile.dev]
